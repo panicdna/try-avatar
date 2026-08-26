@@ -1,0 +1,16 @@
+{
+  "name": "voc-hub-skills",
+  "owner": {
+    "name": "panicdna",
+    "url": "https://github.com/panicdna"
+  },
+  "description": "Agent skills for operating VoC Hub, maintained by panicdna.",
+  "plugins": [
+    {
+      "name": "voc-hub-responder",
+      "source": "./plugins/voc-hub-responder",
+      "description": "Triage VoC Hub records over the X-API-Key integration API — list, draft, save, and send customer or internal replies, with the send gated on an explicit approval of mode, recipient, and subject.",
+      "category": "developer-tools"
+    }
+  ]
+}

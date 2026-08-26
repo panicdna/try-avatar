@@ -1,0 +1,22 @@
+{
+  "name": "voc-hub-responder",
+  "version": "1.0.0",
+  "description": "Triage VoC Hub records from a local stack over the X-API-Key integration API: list open VoCs, save a draft, move a status, and send a customer or internal reply. Gates every send on a human approving the mode, recipient, and subject — because `compose` picks the recipient, approving a customer reply is not approving an internal mail.",
+  "author": {
+    "name": "panicdna",
+    "url": "https://github.com/panicdna"
+  },
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/dev-team-404/voc-hub",
+  "repository": "https://github.com/dev-team-404/voc-hub.git",
+  "keywords": [
+    "voc",
+    "voc-hub",
+    "integration-api",
+    "triage",
+    "compose",
+    "idempotency",
+    "approval-gate",
+    "skill"
+  ]
+}
