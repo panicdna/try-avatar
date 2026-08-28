@@ -147,6 +147,9 @@ def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
                 "message": "파일이 변경되었습니다. 새로고침 후 다시 시도하세요",
             })
 
+        def _bad_request(self, message: str) -> None:
+            self._send_json(400, {"error": "bad_request", "message": message})
+
         def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler 관례)
             if self.path == "/":
                 self._send_html(200, DASHBOARD_HTML)
@@ -161,9 +164,17 @@ def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
             if self.path != "/api/entries":
                 self._send_json(404, {"error": "not_found"})
                 return
-            body = self._read_json_body()
             try:
-                items = apply_patch(jsonl_path, body["original"], body.get("updated", {}))
+                body = self._read_json_body()
+                original = body["original"]
+            except json.JSONDecodeError:
+                self._bad_request("요청 본문이 올바른 JSON이 아닙니다")
+                return
+            except KeyError:
+                self._bad_request("'original' 필드가 필요합니다")
+                return
+            try:
+                items = apply_patch(jsonl_path, original, body.get("updated", {}))
             except ConflictError:
                 self._conflict()
                 return
@@ -173,9 +184,17 @@ def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
             if self.path != "/api/entries":
                 self._send_json(404, {"error": "not_found"})
                 return
-            body = self._read_json_body()
             try:
-                items = apply_delete(jsonl_path, body["original"])
+                body = self._read_json_body()
+                original = body["original"]
+            except json.JSONDecodeError:
+                self._bad_request("요청 본문이 올바른 JSON이 아닙니다")
+                return
+            except KeyError:
+                self._bad_request("'original' 필드가 필요합니다")
+                return
+            try:
+                items = apply_delete(jsonl_path, original)
             except ConflictError:
                 self._conflict()
                 return
