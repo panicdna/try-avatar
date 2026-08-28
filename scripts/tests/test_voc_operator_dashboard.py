@@ -288,5 +288,18 @@ class BuildServerPortConflictTests(unittest.TestCase):
                 first.server_close()
 
 
+class MainEntrypointTests(unittest.TestCase):
+    def test_main_reports_already_running_when_port_busy(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "operator-decisions.jsonl"
+            occupied = dash.build_server(path, port=0)
+            port = occupied.server_address[1]
+            try:
+                exit_code = dash.main(["--file", str(path), "--port", str(port)])
+                self.assertEqual(exit_code, 1)
+            finally:
+                occupied.server_close()
+
+
 if __name__ == "__main__":
     unittest.main()
