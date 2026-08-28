@@ -115,7 +115,171 @@ def apply_delete(path: Path, original: dict) -> list[dict]:
     return items
 
 
-DASHBOARD_HTML = "<html><body>placeholder</body></html>"  # Task 4에서 실제 내용으로 교체
+DASHBOARD_HTML = """<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>VoC Operator 이력 대시보드</title>
+<style>
+  body { font-family: system-ui, sans-serif; margin: 2rem; color: #1a1a1a; }
+  h1 { font-size: 1.25rem; }
+  #search-input { padding: 0.4rem; width: 20rem; margin-bottom: 1rem; }
+  #parse-error-banner { display: none; background: #fff3cd; border: 1px solid #ffca2c;
+                         padding: 0.6rem; margin-bottom: 1rem; border-radius: 4px; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border: 1px solid #ddd; padding: 0.5rem; vertical-align: top; text-align: left; }
+  th { background: #f5f5f5; }
+  td textarea { width: 100%; box-sizing: border-box; }
+  .row-actions button { margin-right: 0.4rem; }
+  .ts-cell { white-space: nowrap; color: #666; font-size: 0.85em; }
+</style>
+</head>
+<body>
+<h1>VoC Operator 이력 대시보드</h1>
+<div id="parse-error-banner"></div>
+<input id="search-input" type="text" placeholder="voc_number 또는 decision 검색">
+<table id="entries-table">
+  <thead>
+    <tr>
+      <th>ts</th><th>voc_number</th><th>decision</th><th>trigger_condition</th>
+      <th>human_instruction</th><th>precedent_used</th><th></th>
+    </tr>
+  </thead>
+  <tbody id="entries-body"></tbody>
+</table>
+
+<datalist id="decision-options">
+  <option value="reply"><option value="internal">
+  <option value="pr_delegate"><option value="hold">
+</datalist>
+
+<script>
+const EDITABLE_FIELDS = ["voc_number", "decision", "trigger_condition", "human_instruction", "precedent_used"];
+let allItems = [];
+
+async function loadEntries() {
+  const res = await fetch("/api/entries");
+  const data = await res.json();
+  allItems = data.items.slice().sort((a, b) => (a.ts < b.ts ? 1 : -1));
+  renderParseErrorBanner(data.parse_errors);
+  renderTable(allItems);
+}
+
+function renderParseErrorBanner(errors) {
+  const banner = document.getElementById("parse-error-banner");
+  if (errors && errors.length > 0) {
+    banner.style.display = "block";
+    banner.textContent = errors.length + "개 줄 파싱 실패, 무시됨 — 원본 파일에서 직접 확인하세요.";
+  } else {
+    banner.style.display = "none";
+  }
+}
+
+function matchesSearch(item, query) {
+  if (!query) return true;
+  const q = query.toLowerCase();
+  return (item.voc_number || "").toLowerCase().includes(q)
+      || (item.decision || "").toLowerCase().includes(q);
+}
+
+function renderTable(items) {
+  const query = document.getElementById("search-input").value;
+  const tbody = document.getElementById("entries-body");
+  tbody.innerHTML = "";
+  items.filter(item => matchesSearch(item, query)).forEach(item => {
+    tbody.appendChild(renderRow(item));
+  });
+}
+
+function renderRow(item) {
+  const tr = document.createElement("tr");
+  const tsCell = document.createElement("td");
+  tsCell.className = "ts-cell";
+  tsCell.textContent = item.ts || "";
+  tr.appendChild(tsCell);
+
+  const editors = {};
+  EDITABLE_FIELDS.forEach(field => {
+    const td = document.createElement("td");
+    const span = document.createElement("span");
+    span.textContent = item[field] || "";
+    td.appendChild(span);
+    editors[field] = { td, span };
+    tr.appendChild(td);
+  });
+
+  const actionsTd = document.createElement("td");
+  actionsTd.className = "row-actions";
+  const editBtn = document.createElement("button");
+  editBtn.textContent = "수정";
+  const deleteBtn = document.createElement("button");
+  deleteBtn.textContent = "삭제";
+  actionsTd.appendChild(editBtn);
+  actionsTd.appendChild(deleteBtn);
+  tr.appendChild(actionsTd);
+
+  editBtn.addEventListener("click", () => {
+    if (editBtn.textContent === "수정") {
+      EDITABLE_FIELDS.forEach(field => {
+        const { td, span } = editors[field];
+        td.innerHTML = "";
+        const textarea = document.createElement("textarea");
+        textarea.value = item[field] || "";
+        if (field === "decision") textarea.setAttribute("list", "decision-options");
+        td.appendChild(textarea);
+        editors[field].textarea = textarea;
+      });
+      editBtn.textContent = "저장";
+    } else {
+      const updated = {};
+      EDITABLE_FIELDS.forEach(field => {
+        updated[field] = editors[field].textarea.value;
+      });
+      savePatch(item, updated);
+    }
+  });
+
+  deleteBtn.addEventListener("click", () => {
+    if (confirm("이 항목은 향후 자동 판단의 선례로 쓰일 수 있습니다. 정말 삭제할까요?")) {
+      deleteEntry(item);
+    }
+  });
+
+  return tr;
+}
+
+async function savePatch(original, updated) {
+  const res = await fetch("/api/entries", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ original, updated }),
+  });
+  if (res.status === 409) {
+    alert("파일이 변경되었습니다. 새로고침 후 다시 시도하세요");
+    return;
+  }
+  await loadEntries();
+}
+
+async function deleteEntry(original) {
+  const res = await fetch("/api/entries", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ original }),
+  });
+  if (res.status === 409) {
+    alert("파일이 변경되었습니다. 새로고침 후 다시 시도하세요");
+    return;
+  }
+  await loadEntries();
+}
+
+document.getElementById("search-input").addEventListener("input", () => renderTable(allItems));
+loadEntries();
+</script>
+</body>
+</html>
+"""
 
 
 def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
