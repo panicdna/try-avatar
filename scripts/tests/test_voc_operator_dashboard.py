@@ -52,5 +52,92 @@ class ParseJsonlTests(unittest.TestCase):
             self.assertEqual(errors, [])
 
 
+class ApplyPatchDeleteTests(unittest.TestCase):
+    def _make_file(self, tmp: str, entries: list[dict]) -> Path:
+        path = Path(tmp) / "operator-decisions.jsonl"
+        lines = [json.dumps(e, ensure_ascii=False) for e in entries]
+        path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+        return path
+
+    def test_patch_updates_matching_line_and_creates_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            path = self._make_file(tmp, [entry])
+            items = dash.apply_patch(path, entry, {"decision": "reply"})
+            self.assertEqual(items[0]["decision"], "reply")
+            self.assertEqual(items[0]["ts"], "t1")  # ts는 절대 안 바뀐다
+            backups = list(Path(tmp).glob("operator-decisions.jsonl.bak-*"))
+            self.assertEqual(len(backups), 1)
+
+    def test_patch_conflict_when_original_does_not_match_current_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            path = self._make_file(tmp, [entry])
+            stale_original = dict(entry, decision="already_changed_elsewhere")
+            with self.assertRaises(dash.ConflictError):
+                dash.apply_patch(path, stale_original, {"decision": "reply"})
+            # 실패 시 파일도 백업도 생기지 않아야 한다
+            items, _ = dash.parse_jsonl(path)
+            self.assertEqual(items[0]["decision"], "hold")
+            backups = list(Path(tmp).glob("operator-decisions.jsonl.bak-*"))
+            self.assertEqual(backups, [])
+
+    def test_patch_ignores_fields_outside_editable_list(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            path = self._make_file(tmp, [entry])
+            items = dash.apply_patch(path, entry, {"ts": "hacked", "decision": "reply"})
+            self.assertEqual(items[0]["ts"], "t1")
+
+    def test_delete_removes_matching_line_and_creates_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry1 = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            entry2 = {"ts": "t2", "voc_number": "V2", "decision": "reply",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            path = self._make_file(tmp, [entry1, entry2])
+            items = dash.apply_delete(path, entry1)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["voc_number"], "V2")
+            backups = list(Path(tmp).glob("operator-decisions.jsonl.bak-*"))
+            self.assertEqual(len(backups), 1)
+
+    def test_delete_conflict_when_line_already_gone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            path = self._make_file(tmp, [])  # 이미 삭제된 상태를 흉내
+            with self.assertRaises(dash.ConflictError):
+                dash.apply_delete(path, entry)
+
+    def test_write_backup_returns_none_when_no_file_yet(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "operator-decisions.jsonl"
+            self.assertIsNone(dash.write_backup(path))
+
+    def test_backup_failure_aborts_write_and_leaves_file_unchanged(self):
+        import unittest.mock as mock
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            path = self._make_file(tmp, [entry])
+            original_text = path.read_text(encoding="utf-8")
+            with mock.patch("voc_operator_dashboard.shutil.copy2", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError):
+                    dash.apply_patch(path, entry, {"decision": "reply"})
+            # 백업이 실패했으니 원본 파일도 절대 바뀌면 안 된다
+            self.assertEqual(path.read_text(encoding="utf-8"), original_text)
+
+
 if __name__ == "__main__":
     unittest.main()
