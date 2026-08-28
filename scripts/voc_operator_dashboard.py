@@ -37,7 +37,11 @@ def parse_jsonl(path: Path) -> tuple[list[dict], list[dict]]:
     items: list[dict] = []
     errors: list[dict] = []
     text = path.read_text(encoding="utf-8")
-    for line_no, raw in enumerate(text.splitlines(), start=1):
+    # splitlines()가 아니라 split("\n")을 쓴다: splitlines()는 \x0b, \x0c, \x1c-\x1e,
+    # \x85,  ,   같은 유니코드 줄바꿈 문자에서도 쪼갠다. json.dumps(...,
+    # ensure_ascii=False)는 이런 문자를 문자열 값 안에 그대로 담을 수 있으므로, splitlines()를
+    # 쓰면 유효한 한 줄짜리 JSON이 두 조각으로 쪼개져 둘 다 파싱 실패로 오분류된다.
+    for line_no, raw in enumerate(text.split("\n"), start=1):
         if not raw.strip():
             continue
         try:
@@ -54,7 +58,14 @@ class ConflictError(Exception):
 def _read_lines(path: Path) -> list[str]:
     if not path.exists():
         return []
-    return path.read_text(encoding="utf-8").splitlines()
+    # splitlines() 대신 split("\n") — 이유는 parse_jsonl 위 주석 참고.
+    # split("\n")은 _write_lines가 항상 붙이는 트레일링 "\n" 때문에 마지막에 빈
+    # 문자열 원소가 하나 남으므로, 그걸 제거해야 _write_lines가 다시 저장할 때마다
+    # 빈 줄이 누적되지 않는다.
+    lines = path.read_text(encoding="utf-8").split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
+    return lines
 
 
 def _write_lines(path: Path, lines: list[str]) -> None:
@@ -82,7 +93,9 @@ def write_backup(path: Path) -> Path | None:
     """
     if not path.exists():
         return None
-    backup_path = path.with_name(f"{path.name}.bak-{int(time.time())}")
+    # time.time_ns() — int(time.time())는 초 단위라 같은 초 안의 두 번째 쓰기가
+    # 첫 백업을 덮어써 버린다(spec: 쓰기마다 백업 1개).
+    backup_path = path.with_name(f"{path.name}.bak-{time.time_ns()}")
     shutil.copy2(path, backup_path)
     return backup_path
 
@@ -227,7 +240,7 @@ function renderRow(item) {
         if (field === "decision") {
           control = document.createElement("input");
           control.type = "text";
-          control.list = "decision-options";
+          control.setAttribute("list", "decision-options");
           control.value = item[field] || "";
         } else {
           control = document.createElement("textarea");
@@ -255,6 +268,19 @@ function renderRow(item) {
   return tr;
 }
 
+async function reportFailure(res) {
+  let message = "요청이 실패했습니다 (HTTP " + res.status + ")";
+  try {
+    const errorBody = await res.json();
+    if (errorBody && errorBody.message) {
+      message = errorBody.message;
+    }
+  } catch (e) {
+    // 본문이 JSON이 아니면 기본 메시지를 그대로 쓴다
+  }
+  alert(message);
+}
+
 async function savePatch(original, updated) {
   const res = await fetch("/api/entries", {
     method: "PATCH",
@@ -263,6 +289,10 @@ async function savePatch(original, updated) {
   });
   if (res.status === 409) {
     alert("파일이 변경되었습니다. 새로고침 후 다시 시도하세요");
+    return;
+  }
+  if (!res.ok) {
+    await reportFailure(res);
     return;
   }
   await loadEntries();
@@ -276,6 +306,10 @@ async function deleteEntry(original) {
   });
   if (res.status === 409) {
     alert("파일이 변경되었습니다. 새로고침 후 다시 시도하세요");
+    return;
+  }
+  if (!res.ok) {
+    await reportFailure(res);
     return;
   }
   await loadEntries();
@@ -331,6 +365,12 @@ def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
                 return
             self._send_json(404, {"error": "not_found"})
 
+        def _backup_failed(self) -> None:
+            self._send_json(500, {
+                "error": "backup_failed",
+                "message": "백업 생성에 실패했습니다. 변경 사항이 저장되지 않았습니다.",
+            })
+
         def do_PATCH(self) -> None:  # noqa: N802
             if self.path != "/api/entries":
                 self._send_json(404, {"error": "not_found"})
@@ -338,16 +378,24 @@ def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
             try:
                 body = self._read_json_body()
                 original = body["original"]
-            except json.JSONDecodeError:
+                updated = body.get("updated", {})
+            except ValueError:
+                # json.JSONDecodeError(ValueError의 서브클래스)뿐 아니라, Content-Length
+                # 헤더가 정수로 파싱 안 되는 경우(int() 예외)도 여기서 잡는다.
                 self._bad_request("요청 본문이 올바른 JSON이 아닙니다")
                 return
-            except KeyError:
+            except (KeyError, TypeError):
+                # KeyError: "original" 키가 없음. TypeError: body가 dict가 아니어서
+                # body["original"] 또는 body.get(...)이 실패(예: 리스트/문자열/null 본문).
                 self._bad_request("'original' 필드가 필요합니다")
                 return
             try:
-                items = apply_patch(jsonl_path, original, body.get("updated", {}))
+                items = apply_patch(jsonl_path, original, updated)
             except ConflictError:
                 self._conflict()
+                return
+            except OSError:
+                self._backup_failed()
                 return
             self._send_json(200, {"items": items})
 
@@ -358,16 +406,19 @@ def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
             try:
                 body = self._read_json_body()
                 original = body["original"]
-            except json.JSONDecodeError:
+            except ValueError:
                 self._bad_request("요청 본문이 올바른 JSON이 아닙니다")
                 return
-            except KeyError:
+            except (KeyError, TypeError):
                 self._bad_request("'original' 필드가 필요합니다")
                 return
             try:
                 items = apply_delete(jsonl_path, original)
             except ConflictError:
                 self._conflict()
+                return
+            except OSError:
+                self._backup_failed()
                 return
             self._send_json(200, {"items": items})
 

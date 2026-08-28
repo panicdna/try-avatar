@@ -1,4 +1,5 @@
 import json
+import socket
 import sys
 import tempfile
 import threading
@@ -141,6 +142,73 @@ class ApplyPatchDeleteTests(unittest.TestCase):
             # 백업이 실패했으니 원본 파일도 절대 바뀌면 안 된다
             self.assertEqual(path.read_text(encoding="utf-8"), original_text)
 
+    def test_line_split_survives_unicode_line_separator_in_value(self):
+        # Finding 1 재현: splitlines()는 \n 말고도 U+2028, \x0c 등에서도 쪼갠다.
+        # ensure_ascii=False로 쓰인 JSONL 값 안에 이런 문자가 있으면 유효한 한 줄이
+        # 두 조각으로 잘못 쪼개져 둘 다 파싱 실패가 되고, 그 항목은 원본과 다시는
+        # 매칭되지 않아 영구히 수정/삭제 불가능해진다.
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            path = self._make_file(tmp, [entry])
+            tricky_value = "고객 메시지 1줄 고객 메시지 2줄\x0c끝"
+
+            items = dash.apply_patch(path, entry, {"human_instruction": tricky_value})
+            self.assertEqual(items[0]["human_instruction"], tricky_value)
+
+            parsed_items, errors = dash.parse_jsonl(path)
+            self.assertEqual(errors, [])
+            self.assertEqual(len(parsed_items), 1)
+            self.assertEqual(parsed_items[0]["human_instruction"], tricky_value)
+
+            # 다시 읽은 값으로 재매칭이 되어야 한다 — 영구히 매칭 불가능한 상태가 아님을 증명
+            reread_original = parsed_items[0]
+            items2 = dash.apply_patch(path, reread_original, {"decision": "reply"})
+            self.assertEqual(items2[0]["decision"], "reply")
+            self.assertEqual(items2[0]["human_instruction"], tricky_value)
+
+            final_original = items2[0]
+            items3 = dash.apply_delete(path, final_original)
+            self.assertEqual(items3, [])
+
+    def test_repeated_patches_do_not_accumulate_blank_lines(self):
+        # Self-review 항목: _write_lines가 매번 정확히 엔트리당 한 줄만 쓰는지,
+        # 반복 patch 후에도 빈 줄이 누적되지 않는지 확인한다.
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            path = self._make_file(tmp, [entry])
+
+            items = dash.apply_patch(path, entry, {"decision": "reply"})
+            self.assertEqual(path.read_text(encoding="utf-8").count("\n"), 1)
+            items = dash.apply_patch(path, items[0], {"decision": "internal"})
+            self.assertEqual(path.read_text(encoding="utf-8").count("\n"), 1)
+            items = dash.apply_patch(path, items[0], {"decision": "hold"})
+            self.assertEqual(path.read_text(encoding="utf-8").count("\n"), 1)
+            self.assertEqual(len(items), 1)
+
+    def test_write_backup_uses_nanosecond_suffix_no_collision_within_same_second(self):
+        # Finding 4: 같은 초 안에 연속 write가 일어나도 백업 파일명이 겹치면 안 된다.
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+            path = self._make_file(tmp, [entry])
+            content_before_first = path.read_text(encoding="utf-8")
+
+            items = dash.apply_patch(path, entry, {"decision": "reply"})
+            content_before_second = path.read_text(encoding="utf-8")
+            dash.apply_patch(path, items[0], {"decision": "internal"})
+
+            backups = sorted(Path(tmp).glob("operator-decisions.jsonl.bak-*"))
+            self.assertEqual(len(backups), 2)
+            self.assertNotEqual(backups[0].name, backups[1].name)
+            contents = {b.name: b.read_text(encoding="utf-8") for b in backups}
+            self.assertIn(content_before_first, contents.values())
+            self.assertIn(content_before_second, contents.values())
+
 
 class HttpServerTests(unittest.TestCase):
     def setUp(self):
@@ -239,6 +307,83 @@ class HttpServerTests(unittest.TestCase):
         self.assertEqual(status, 400)
         self.assertEqual(payload["error"], "bad_request")
 
+    def test_patch_entries_non_dict_body_returns_400(self):
+        # Finding 2: body가 유효한 JSON이지만 dict가 아니면 body["original"]에서
+        # KeyError가 아니라 TypeError가 난다 — 이것도 잡아서 400으로 응답해야 한다.
+        status, payload = self._raw_request("PATCH", "/api/entries", b"[1, 2]")
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "bad_request")
+
+    def test_delete_entries_non_dict_body_returns_400(self):
+        status, payload = self._raw_request("DELETE", "/api/entries", b"[1, 2]")
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "bad_request")
+
+    def test_patch_entries_null_body_returns_400(self):
+        status, payload = self._raw_request("PATCH", "/api/entries", b"null")
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "bad_request")
+
+    def test_patch_entries_malformed_content_length_returns_400_not_dropped_connection(self):
+        # Finding 2: Content-Length 헤더가 정수로 파싱이 안 되면(int() -> ValueError)
+        # 커넥션을 끊지 말고 400을 깔끔하게 응답해야 한다. urllib은 Content-Length를
+        # 스스로 계산해 버리므로 raw socket으로 직접 헤더를 조작한다.
+        body = b'{"original": {}}'
+        request = (
+            "PATCH /api/entries HTTP/1.1\r\n"
+            f"Host: 127.0.0.1:{self.port}\r\n"
+            "Content-Type: application/json\r\n"
+            "Content-Length: abc\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+        ).encode("ascii") + body
+        with socket.create_connection(("127.0.0.1", self.port), timeout=5) as sock:
+            sock.sendall(request)
+            response = b""
+            while True:
+                chunk = sock.recv(4096)
+                if not chunk:
+                    break
+                response += chunk
+        status_line = response.split(b"\r\n", 1)[0].decode("ascii")
+        self.assertIn("400", status_line)
+        response_body = response.split(b"\r\n\r\n", 1)[1]
+        payload = json.loads(response_body.decode("utf-8"))
+        self.assertEqual(payload["error"], "bad_request")
+
+    def test_patch_entries_backup_failure_returns_500_and_leaves_file_unchanged(self):
+        # Finding 2: write_backup(→shutil.copy2)이 실패하면 커넥션을 끊지 말고
+        # 깔끔한 500 응답을 보내야 하며, 파일은 그대로여야 한다.
+        import unittest.mock as mock
+        original_text = self.path.read_text(encoding="utf-8")
+        with mock.patch("voc_operator_dashboard.shutil.copy2", side_effect=OSError("disk full")):
+            status, payload = self._request(
+                "PATCH", "/api/entries",
+                {"original": self.entry, "updated": {"decision": "reply"}},
+            )
+        self.assertEqual(status, 500)
+        self.assertEqual(payload["error"], "backup_failed")
+        self.assertEqual(self.path.read_text(encoding="utf-8"), original_text)
+
+    def test_delete_entries_backup_failure_returns_500_and_leaves_file_unchanged(self):
+        import unittest.mock as mock
+        original_text = self.path.read_text(encoding="utf-8")
+        with mock.patch("voc_operator_dashboard.shutil.copy2", side_effect=OSError("disk full")):
+            status, payload = self._request("DELETE", "/api/entries", {"original": self.entry})
+        self.assertEqual(status, 500)
+        self.assertEqual(payload["error"], "backup_failed")
+        self.assertEqual(self.path.read_text(encoding="utf-8"), original_text)
+
+    def test_frontend_handles_non_409_failures_explicitly(self):
+        # Finding 5: 409 이외의 실패(400/500)도 loadEntries()로 조용히 넘어가지 않고
+        # 사용자에게 알려야 한다. JS가 HTML 문자열에 임베드되어 있으므로 소스 존재
+        # 여부로 확인하는 스모크 테스트다 (기존 테스트들과 같은 패턴).
+        with urllib.request.urlopen(self._url("/")) as resp:
+            html = resp.read().decode("utf-8")
+        self.assertIn("async function reportFailure(res)", html)
+        self.assertIn("if (!res.ok) {", html)
+        self.assertIn("await reportFailure(res);", html)
+
     def test_unknown_path_returns_404(self):
         status, payload = self._request("GET", "/nope")
         self.assertEqual(status, 404)
@@ -270,7 +415,9 @@ class HttpServerTests(unittest.TestCase):
         self.assertIn('if (field === "decision") {', html)
         self.assertIn('control = document.createElement("input");', html)
         self.assertIn('control.type = "text";', html)
-        self.assertIn('control.list = "decision-options";', html)
+        # control.list는 읽기 전용 IDL 속성이라 대입은 조용히 no-op된다 —
+        # setAttribute("list", ...)를 써야 실제로 datalist에 바인딩된다.
+        self.assertIn('control.setAttribute("list", "decision-options");', html)
         # Confirm other fields still use textarea
         self.assertIn('control = document.createElement("textarea");', html)
 
