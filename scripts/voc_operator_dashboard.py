@@ -223,11 +223,18 @@ function renderRow(item) {
       EDITABLE_FIELDS.forEach(field => {
         const { td, span } = editors[field];
         td.innerHTML = "";
-        const textarea = document.createElement("textarea");
-        textarea.value = item[field] || "";
-        if (field === "decision") textarea.setAttribute("list", "decision-options");
-        td.appendChild(textarea);
-        editors[field].textarea = textarea;
+        let control;
+        if (field === "decision") {
+          control = document.createElement("input");
+          control.type = "text";
+          control.list = "decision-options";
+          control.value = item[field] || "";
+        } else {
+          control = document.createElement("textarea");
+          control.value = item[field] || "";
+        }
+        td.appendChild(control);
+        editors[field].textarea = control;
       });
       editBtn.textContent = "저장";
     } else {
