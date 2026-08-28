@@ -89,8 +89,9 @@ JSONL 한 줄 = 한 판단 기록. 필드:
 ## 백업
 
 PATCH/DELETE 처리 직전, 현재 파일 전체를
-`~/.voc-hub/operator-decisions.jsonl.bak-<unix epoch seconds>` 로 복사한다(수정
-1건당 백업 1개). 복사 실패 시(디스크 문제 등) **쓰기 자체를 중단**하고 에러를
+`~/.voc-hub/operator-decisions.jsonl.bak-<unix epoch nanoseconds>` 로 복사한다(수정
+1건당 백업 1개 — 초 단위로는 같은 초 안의 연속 수정이 충돌해 이전 백업을 덮어쓸 수
+있어 나노초 단위로 구현했다). 복사 실패 시(디스크 문제 등) **쓰기 자체를 중단**하고 에러를
 반환한다 — 백업 없이 원본을 고치지 않는다.
 
 ## API
