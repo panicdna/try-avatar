@@ -252,6 +252,28 @@ class HttpServerTests(unittest.TestCase):
         self.assertIn("새로고침 후 다시 시도", html)
         self.assertIn("향후 자동 판단의 선례로 쓰일 수 있습니다", html)
 
+    def test_decision_field_uses_input_with_datalist_not_textarea(self):
+        """Verify the decision field's edit control uses <input type="text"> with list attr.
+
+        The HTML spec only allows list attribute on <input>, not <textarea>.
+        This test confirms the fix for the datalist support defect.
+        """
+        with urllib.request.urlopen(self._url("/")) as resp:
+            html = resp.read().decode("utf-8")
+        # Confirm the datalist exists
+        self.assertIn('id="decision-options"', html)
+        self.assertIn('value="reply"', html)
+        self.assertIn('value="internal"', html)
+        self.assertIn('value="pr_delegate"', html)
+        self.assertIn('value="hold"', html)
+        # Confirm the JS for decision field creates input not textarea
+        self.assertIn('if (field === "decision") {', html)
+        self.assertIn('control = document.createElement("input");', html)
+        self.assertIn('control.type = "text";', html)
+        self.assertIn('control.list = "decision-options";', html)
+        # Confirm other fields still use textarea
+        self.assertIn('control = document.createElement("textarea");', html)
+
 
 class BuildServerPortConflictTests(unittest.TestCase):
     def test_second_server_on_same_port_raises_oserror(self):
