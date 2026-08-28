@@ -1,7 +1,10 @@
 import json
 import sys
 import tempfile
+import threading
 import unittest
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -137,6 +140,89 @@ class ApplyPatchDeleteTests(unittest.TestCase):
                     dash.apply_patch(path, entry, {"decision": "reply"})
             # 백업이 실패했으니 원본 파일도 절대 바뀌면 안 된다
             self.assertEqual(path.read_text(encoding="utf-8"), original_text)
+
+
+class HttpServerTests(unittest.TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.TemporaryDirectory()
+        self.path = Path(self.tmpdir.name) / "operator-decisions.jsonl"
+        self.entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": ""}
+        self.path.write_text(json.dumps(self.entry, ensure_ascii=False) + "\n", encoding="utf-8")
+        self.server = dash.build_server(self.path, port=0)  # 0 = OS가 빈 포트 할당
+        self.port = self.server.server_address[1]
+        self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
+        self.thread.start()
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+        self.thread.join(timeout=2)
+        self.tmpdir.cleanup()
+
+    def _url(self, path: str) -> str:
+        return f"http://127.0.0.1:{self.port}{path}"
+
+    def _request(self, method: str, path: str, body: dict | None = None):
+        data = json.dumps(body).encode("utf-8") if body is not None else None
+        req = urllib.request.Request(self._url(path), data=data, method=method,
+                                      headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return resp.status, json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode("utf-8"))
+
+    def test_get_root_returns_html(self):
+        with urllib.request.urlopen(self._url("/")) as resp:
+            self.assertEqual(resp.status, 200)
+            self.assertIn("text/html", resp.headers.get("Content-Type", ""))
+
+    def test_get_entries_returns_items_and_empty_parse_errors(self):
+        status, payload = self._request("GET", "/api/entries")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["items"], [self.entry])
+        self.assertEqual(payload["parse_errors"], [])
+
+    def test_patch_entries_success(self):
+        status, payload = self._request(
+            "PATCH", "/api/entries",
+            {"original": self.entry, "updated": {"decision": "reply"}},
+        )
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["items"][0]["decision"], "reply")
+
+    def test_patch_entries_conflict_returns_409(self):
+        stale = dict(self.entry, decision="wrong")
+        status, payload = self._request(
+            "PATCH", "/api/entries",
+            {"original": stale, "updated": {"decision": "reply"}},
+        )
+        self.assertEqual(status, 409)
+        self.assertEqual(payload["error"], "conflict")
+
+    def test_delete_entries_success(self):
+        status, payload = self._request("DELETE", "/api/entries", {"original": self.entry})
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["items"], [])
+
+    def test_unknown_path_returns_404(self):
+        status, payload = self._request("GET", "/nope")
+        self.assertEqual(status, 404)
+
+
+class BuildServerPortConflictTests(unittest.TestCase):
+    def test_second_server_on_same_port_raises_oserror(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "operator-decisions.jsonl"
+            first = dash.build_server(path, port=0)
+            port = first.server_address[1]
+            try:
+                with self.assertRaises(OSError):
+                    dash.build_server(path, port=port)
+            finally:
+                first.server_close()
 
 
 if __name__ == "__main__":

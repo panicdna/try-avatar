@@ -10,7 +10,9 @@ from __future__ import annotations
 import json
 import shutil
 import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from typing import Any
 
 DEFAULT_JSONL_PATH = Path.home() / ".voc-hub" / "operator-decisions.jsonl"
 DEFAULT_PORT = 8765
@@ -111,3 +113,82 @@ def apply_delete(path: Path, original: dict) -> list[dict]:
     _write_lines(path, lines)
     items, _ = parse_jsonl(path)
     return items
+
+
+DASHBOARD_HTML = "<html><body>placeholder</body></html>"  # Task 4에서 실제 내용으로 교체
+
+
+def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
+    class Handler(BaseHTTPRequestHandler):
+        def _send_json(self, status: int, payload: Any) -> None:
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _send_html(self, status: int, html: str) -> None:
+            body = html.encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _read_json_body(self) -> dict:
+            length = int(self.headers.get("Content-Length", 0) or 0)
+            raw = self.rfile.read(length) if length else b"{}"
+            return json.loads(raw or b"{}")
+
+        def _conflict(self) -> None:
+            self._send_json(409, {
+                "error": "conflict",
+                "message": "파일이 변경되었습니다. 새로고침 후 다시 시도하세요",
+            })
+
+        def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler 관례)
+            if self.path == "/":
+                self._send_html(200, DASHBOARD_HTML)
+                return
+            if self.path == "/api/entries":
+                items, errors = parse_jsonl(jsonl_path)
+                self._send_json(200, {"items": items, "parse_errors": errors})
+                return
+            self._send_json(404, {"error": "not_found"})
+
+        def do_PATCH(self) -> None:  # noqa: N802
+            if self.path != "/api/entries":
+                self._send_json(404, {"error": "not_found"})
+                return
+            body = self._read_json_body()
+            try:
+                items = apply_patch(jsonl_path, body["original"], body.get("updated", {}))
+            except ConflictError:
+                self._conflict()
+                return
+            self._send_json(200, {"items": items})
+
+        def do_DELETE(self) -> None:  # noqa: N802
+            if self.path != "/api/entries":
+                self._send_json(404, {"error": "not_found"})
+                return
+            body = self._read_json_body()
+            try:
+                items = apply_delete(jsonl_path, body["original"])
+            except ConflictError:
+                self._conflict()
+                return
+            self._send_json(200, {"items": items})
+
+        def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+            pass  # 터미널 스팸 방지 — 필요하면 나중에 로깅으로 바꾼다
+
+    return Handler
+
+
+def build_server(jsonl_path: Path, port: int) -> ThreadingHTTPServer:
+    """포트가 이미 쓰이는 중이면 OSError를 그대로 전파한다 — 호출자(main)가
+    "이미 실행 중일 수 있음" 메시지로 바꿔 보여준다."""
+    handler_cls = make_handler(jsonl_path)
+    return ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
