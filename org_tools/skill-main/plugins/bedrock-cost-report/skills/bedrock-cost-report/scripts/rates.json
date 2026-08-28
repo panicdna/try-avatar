@@ -1,0 +1,7 @@
+{
+  "_note": "Bedrock 단가는 모델/시점에 따라 변합니다. 새 모델 추가나 단가 변경 시 이 파일만 수정하세요. key는 모델명(또는 CSV 모델 컬럼 접미사)에 '포함되는' 소문자 부분문자열로 매칭됩니다. 단위: USD per 1M tokens. 필드: in / cache_read / cache_write / out.",
+  "_source": "AICM 단가표 또는 AWS Bedrock pricing (해당 계약 단가로 갱신)",
+  "opus":   {"in": 15,  "cache_read": 1.5,  "cache_write": 18.75, "out": 75},
+  "sonnet": {"in": 3,   "cache_read": 0.30, "cache_write": 3.75,  "out": 15},
+  "haiku":  {"in": 1,   "cache_read": 0.10, "cache_write": 1.25,  "out": 5}
+}

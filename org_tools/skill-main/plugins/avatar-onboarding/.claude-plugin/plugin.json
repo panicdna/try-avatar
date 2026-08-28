@@ -1,0 +1,7 @@
+{
+  "name": "avatar-onboarding",
+  "description": "Turn an Agent Factory Avatar Card into an installed personal Claude Code, OpenCode, or Codex subagent — interviews for missing operational context, proposes Card changes, and installs the reviewed profile.",
+  "version": "1.0.1",
+  "license": "Apache-2.0",
+  "author": { "name": "Seongmoon Jeong" }
+}

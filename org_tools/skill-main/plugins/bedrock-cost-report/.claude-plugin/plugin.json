@@ -1,0 +1,7 @@
+{
+  "name": "bedrock-cost-report",
+  "description": "Generate a monthly Claude Code / AWS Bedrock cost report as a self-contained HTML file. Fetches the user's own usage automatically from the DS Bedrock dashboard API (no input needed), or takes a pasted AICM CSV row / billed total. Use when the user asks to break down their Claude Code cost by model / project / task and get cost-saving insights.",
+  "version": "1.1.0",
+  "license": "Proprietary - Samsung DS internal use only",
+  "author": { "name": "Jibin Sung" }
+}

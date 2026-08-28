@@ -5,8 +5,8 @@
       "source": "127.0.0.1",
       "sourceUrl": "http://127.0.0.1:9090/skills/fAfjaqr7nFdX",
       "sourceType": "well-known",
-      "computedHash": "f60d301768548bef46cc618b09362483a824809090d87025f92a6f809ae1a4ad",
-      "wellKnownDigest": "sha256:ee9af8339d63491901f11cbed6674ce372c9d730e008d8880a0b1e0f25621ea2"
+      "computedHash": "6a64880e64e98792c97d4b2a923d8c67be0ebd4cc5fb3a5ad3cced7d6fad5a1c",
+      "wellKnownDigest": "sha256:4d20fa8f175c252e99522a8bfd9ae5139950b5340c88e24caacd7e8455830ad0"
     }
   }
 }

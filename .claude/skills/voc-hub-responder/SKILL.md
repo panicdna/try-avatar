@@ -5,7 +5,7 @@ metadata:
   agent-factory:
     kind: item
     item_id: 7c5abcec-8690-4476-b554-69a88286eb25
-    version_id: 9d034ba4-5f89-4f74-83a8-f13f7bd22298
+    version_id: 747bab64-fa5a-48e6-9847-67a9266fc378
 ---
 
 # VoC Hub — VoC 대응 (통합 API)

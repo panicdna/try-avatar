@@ -1,0 +1,7 @@
+{
+  "name": "agent-factory-api",
+  "description": "Use when registering, updating, searching, or deleting Agent Factory assets through the agent REST API, including skills, avatar or agent cards, roles, tasks, task-skill links, skill versions, component visibility, aft_ API keys, or https://agent.samsungds.net:3355/api/docs.",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "author": { "name": "Seongmoon Jeong" }
+}

@@ -1,0 +1,127 @@
+{
+  "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
+  "name": "skill-local",
+  "version": "1.0.0",
+  "description": "동료들과 공유하는 Claude Code 플러그인 마켓플레이스 — 각 스킬은 자기 레포에서 독립적으로 유지보수된다.",
+  "owner": { "name": "aiagent" },
+  "plugins": [
+    {
+      "name": "skill-cure",
+      "description": "Triage and remediate security-scan / SAST findings on skills or repos: routes each finding (command-injection, exec/eval, oversized files, description limits, low analyzability, cross-skill shared URL/pattern) to a per-issue reference doc with proven fixes and verification.",
+      "category": "security",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/skill-cure.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "statusline-kit",
+      "description": "Install a Claude Code statusline (model, cwd/branch, context usage, session token totals) into a fresh environment.",
+      "category": "productivity",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/statusline-kit.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "agent-clinic",
+      "description": "Diagnose and treat a repo's context/doc health: trim bloated CLAUDE.md/AGENTS.md, resync public docs with the current code, untrack leaked editor config, and clear out finished planning artifacts.",
+      "category": "productivity",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/agent-clinic.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "resolve-conflict",
+      "description": "Resolve merge conflicts and silent auto-merge inconsistencies when syncing a fork with upstream.",
+      "category": "development",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/resolve-conflict.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "git-sweep",
+      "description": "Find and clean up unnecessary git worktrees and branches — merged (including squash-merged PRs) or otherwise safe to remove — with merge evidence shown before anything is deleted.",
+      "category": "development",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/git-sweep.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "gateway-migration",
+      "description": "System LSI사업부 LLM Gateway 전환(8/18 07:00 KST) 무인 셋업 — 전환 시각 이후 여는 다음 터미널에서 설치→setup→login→verify를 자동으로 이어서 진행한다.",
+      "category": "productivity",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/gateway-migration.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "aws-login",
+      "description": "AWS SSO 자동 로그인 셋업 — Claude Code 세션 중 자격증명 만료로 반복 로그인하는 문제를 자동 갱신으로 해결한다.",
+      "category": "productivity",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/aws-login.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "github-workflow",
+      "description": "GitHub Issue 기반 작업 세션 워크플로우 — 이슈 선택→worktree→브랜치→테스트→PR→Project 보드 상태 자동화.",
+      "category": "development",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/github-workflow.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "skill-optimizer",
+      "description": "Slim down and structurally optimize SKILL.md files for token efficiency without regressing behavior, trigger coverage, inbound anchors, or information.",
+      "category": "development",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/skill-optimizer.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "plugin-packager",
+      "description": "스킬/레포를 Claude Code 마켓플레이스·플러그인으로 패키징·개조해 /plugin 으로 설치 가능하게 하고 실제 설치까지 검증한다 (GHES 포함).",
+      "category": "development",
+      "source": {
+        "source": "url",
+        "url": "https://github.samsungds.net/jemings/plugin-packager.git",
+        "ref": "main"
+      }
+    },
+    {
+      "name": "avatar-onboarding",
+      "description": "Turn an Agent Factory Avatar Card into an installed personal Claude Code, OpenCode, or Codex subagent — interviews for missing operational context, proposes Card changes, and installs the reviewed profile.",
+      "category": "productivity",
+      "source": "./plugins/avatar-onboarding"
+    },
+    {
+      "name": "agent-factory-api",
+      "description": "Use when registering, updating, searching, or deleting Agent Factory assets through the agent REST API, including skills, avatar or agent cards, roles, tasks, task-skill links, skill versions, component visibility, aft_ API keys, or https://agent.samsungds.net:3355/api/docs.",
+      "category": "development",
+      "source": "./plugins/agent-factory-api"
+    },
+    {
+      "name": "bedrock-cost-report",
+      "description": "Generate a monthly Claude Code / AWS Bedrock cost report as a self-contained HTML file. Fetches the user's own usage automatically from the DS Bedrock dashboard API (no input needed), or takes a pasted AICM CSV row / billed total. Use when the user asks to break down their Claude Code cost by model / project / task and get cost-saving insights.",
+      "category": "productivity",
+      "source": "./plugins/bedrock-cost-report"
+    }
+  ]
+}
