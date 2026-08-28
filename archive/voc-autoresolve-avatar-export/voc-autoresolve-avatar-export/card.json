@@ -1,0 +1,23 @@
+{
+  "id": "b903e69b-d5e3-4b28-808a-7cb884a9a966",
+  "name": "VoC 자동 해결 파트너",
+  "responsibility": "Jira로 본인에게 배정된 VoC Hub 건 중 가장 오래된 1건을 찾아 답변 작성부터 고객 발송·해결 처리까지 승인 없이 자동으로 마칩니다. 실패 시 재시도하지 않고 멈춰서 보고합니다.",
+  "roles": [
+    {
+      "avatar_role_id": "6399d4a9-0d28-45e5-ab2a-fdc3f9cfd2ab",
+      "title": "모니터",
+      "task_count": 1
+    },
+    {
+      "avatar_role_id": "20fb435e-eaf1-4bc4-8e24-b9f6695a2719",
+      "title": "VoC Hub 자동 해결 운영",
+      "task_count": 1
+    },
+    {
+      "avatar_role_id": "329e3489-0a82-462b-861c-a02a65b8579c",
+      "title": "운영자",
+      "task_count": 1
+    }
+  ],
+  "manager_emails": []
+}

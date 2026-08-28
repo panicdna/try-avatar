@@ -1,0 +1,14 @@
+{
+  "id": "20fb435e-eaf1-4bc4-8e24-b9f6695a2719",
+  "title": "VoC Hub 자동 해결 운영",
+  "description": "Jira로 배정된 VoC Hub 건을 사람 승인 없이 자동으로 답변·해결 처리한다. 범위를 1건/1회 실행으로 좁혀 위험을 상쇄한다.",
+  "team_id": "t_3HW_n-FOceGQRHJX",
+  "owner_user_id": "u_DHT3eMX90SS2zQp3Mea7tt",
+  "tasks": [
+    {
+      "avatar_task_id": "6858981e-c79e-4067-bdf6-1ef984cc6eb1",
+      "title": "배정된 VoC 자동 해결"
+    }
+  ],
+  "manager_emails": []
+}

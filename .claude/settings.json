@@ -1,0 +1,22 @@
+{
+  "enabledPlugins": {
+    "avatar-onboarding@skill-local": true,
+    "agent-factory-api@skill-local": true,
+    "bedrock-cost-report@skill-local": true,
+    "voc-hub-responder@voc-hub-skills": true
+  },
+  "extraKnownMarketplaces": {
+    "skill-local": {
+      "source": {
+        "source": "directory",
+        "path": "/mnt/c/work/skill-main"
+      }
+    },
+    "voc-hub-skills": {
+      "source": {
+        "source": "directory",
+        "path": "/mnt/c/work/voc-hub/skills/voc-hub-skills"
+      }
+    }
+  }
+}

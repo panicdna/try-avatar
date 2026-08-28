@@ -1,0 +1,16 @@
+{
+  "id": "e8cb23fc-492a-467b-9d0c-cca2d2d430ca",
+  "title": "배정 VoC 감시·보고·발송 실행",
+  "context": "정기 스케줄 아님 — 운영자·자동 해결자의 요청에 온디맨드로 응답. VoC에 대한 모든 대외 입력·출력(조회·고객회신·내부메일 발송)은 이 Role만 수행한다.",
+  "text": "(1) 배정된 모든 VoC를 voc-hub-responder 절차로 조회·유지한다. (2) 운영자가 물으면 최신 목록(voc_number·status·customer_email·issue_owner_email·message)을 요약 없이 그대로 전달한다. (3) 운영자의 지시(reply/internal) 또는 자동 해결자의 'PR 머지됨, 해결 응답 발송' 요청을 받으면 voc-hub-responder의 compose 규칙대로 발송하고 status=resolved 등으로 갱신한다. (4) 실패는 재시도 없이 요청한 쪽(운영자 또는 자동 해결자)에게 그대로 보고한다. 운영자·자동 해결자는 VoC Hub API를 직접 호출하지 않는다 — 모두 이 Role을 거친다. 이 Role은 사람과 직접 대화하지 않는다 — 항상 운영자를 통해서만 지시를 받는다.",
+  "team_id": "t_g7O8-vE_0NEuGqTA",
+  "owner_user_id": "u_se-byQPgVTFQbnc996eFlX",
+  "skills": [
+    {
+      "skill_id": "7c5abcec-8690-4476-b554-69a88286eb25",
+      "component_key": "voc-hub-responder",
+      "component_name": "voc-hub-responder"
+    }
+  ],
+  "manager_emails": []
+}

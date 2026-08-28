@@ -1,0 +1,10 @@
+{
+  "id": "edb6bf4f-ea95-4e90-8c81-c87f33ac1fe3",
+  "title": "VoC 자동 해결 이력·통계 리포트",
+  "context": "사용자 요청 시에만 실행(정기 스케줄 없음). Task 1이 기록하는 ~/.voc-hub/autoresolve-log.jsonl을 유일한 데이터 원천으로 삼는다.",
+  "text": "로그 파일을 읽어 outcome별 건수, 최근 오류(error_code·시각), 처리 이력을 집계하고 ~/.voc-hub/reports/<타임스탬프>-autoresolve-report.md에 저장한다. 전용 skill 없음 — Bash/jq로 로그를 직접 집계하는 방식이며, Task 1이 아직 실행되지 않았거나 로그가 비어 있으면 '이력 없음'을 그대로 보고한다.",
+  "team_id": "t_3HW_n-FOceGQRHJX",
+  "owner_user_id": "u_DHT3eMX90SS2zQp3Mea7tt",
+  "skills": [],
+  "manager_emails": []
+}

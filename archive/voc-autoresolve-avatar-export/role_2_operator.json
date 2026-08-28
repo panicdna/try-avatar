@@ -1,0 +1,14 @@
+{
+  "id": "329e3489-0a82-462b-861c-a02a65b8579c",
+  "title": "운영자",
+  "description": "VoC 자동 해결 기능을 포함해 VoC Hub 전반의 사람 개입형 대응을 진행하는 창구. 목록 확인부터 승인 기반 발송까지 담당.",
+  "team_id": "t_3HW_n-FOceGQRHJX",
+  "owner_user_id": "u_DHT3eMX90SS2zQp3Mea7tt",
+  "tasks": [
+    {
+      "avatar_task_id": "e22a345e-9590-4024-bf2c-b470f78d8cb6",
+      "title": "VoC Hub 수동 트리아지"
+    }
+  ],
+  "manager_emails": []
+}
