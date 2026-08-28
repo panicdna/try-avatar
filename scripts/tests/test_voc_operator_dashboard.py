@@ -243,6 +243,15 @@ class HttpServerTests(unittest.TestCase):
         status, payload = self._request("GET", "/nope")
         self.assertEqual(status, 404)
 
+    def test_root_html_contains_expected_markup_and_conflict_copy(self):
+        with urllib.request.urlopen(self._url("/")) as resp:
+            html = resp.read().decode("utf-8")
+        self.assertIn('id="entries-table"', html)
+        self.assertIn('id="search-input"', html)
+        self.assertIn("/api/entries", html)
+        self.assertIn("새로고침 후 다시 시도", html)
+        self.assertIn("향후 자동 판단의 선례로 쓰일 수 있습니다", html)
+
 
 class BuildServerPortConflictTests(unittest.TestCase):
     def test_second_server_on_same_port_raises_oserror(self):
