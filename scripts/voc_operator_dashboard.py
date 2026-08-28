@@ -382,3 +382,36 @@ def build_server(jsonl_path: Path, port: int) -> ThreadingHTTPServer:
     "이미 실행 중일 수 있음" 메시지로 바꿔 보여준다."""
     handler_cls = make_handler(jsonl_path)
     return ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
+
+
+def main(argv: list[str] | None = None) -> int:
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="VoC Operator 이력 대시보드")
+    parser.add_argument("--file", type=Path, default=DEFAULT_JSONL_PATH,
+                         help="대상 JSONL 파일 경로")
+    parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    args = parser.parse_args(argv)
+
+    try:
+        server = build_server(args.file, args.port)
+    except OSError:
+        print(
+            f"포트 {args.port}가 이미 사용 중입니다. 이미 실행 중인 대시보드가 "
+            f"있을 수 있습니다 — http://localhost:{args.port} 를 열어보세요.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(f"VoC Operator 대시보드: http://localhost:{args.port}  (대상 파일: {args.file})")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    sys.exit(main())
