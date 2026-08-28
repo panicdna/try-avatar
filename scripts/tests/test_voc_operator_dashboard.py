@@ -207,6 +207,38 @@ class HttpServerTests(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(payload["items"], [])
 
+    def _raw_request(self, method: str, path: str, raw_body: bytes):
+        req = urllib.request.Request(self._url(path), data=raw_body, method=method,
+                                      headers={"Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req) as resp:
+                return resp.status, json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            return e.code, json.loads(e.read().decode("utf-8"))
+
+    def test_patch_entries_missing_original_returns_400(self):
+        status, payload = self._request(
+            "PATCH", "/api/entries",
+            {"updated": {"decision": "reply"}},  # "original" 키 없음
+        )
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "bad_request")
+
+    def test_patch_entries_malformed_json_returns_400(self):
+        status, payload = self._raw_request("PATCH", "/api/entries", b"{not valid json")
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "bad_request")
+
+    def test_delete_entries_missing_original_returns_400(self):
+        status, payload = self._request("DELETE", "/api/entries", {})  # "original" 키 없음
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "bad_request")
+
+    def test_delete_entries_malformed_json_returns_400(self):
+        status, payload = self._raw_request("DELETE", "/api/entries", b"{not valid json")
+        self.assertEqual(status, 400)
+        self.assertEqual(payload["error"], "bad_request")
+
     def test_unknown_path_returns_404(self):
         status, payload = self._request("GET", "/nope")
         self.assertEqual(status, 404)
