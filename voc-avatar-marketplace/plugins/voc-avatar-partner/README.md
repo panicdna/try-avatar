@@ -245,8 +245,52 @@ sequenceDiagram
 | 파일 | 관리 주체 | 내용 |
 |---|---|---|
 | `~/.voc-hub/operator-decisions.jsonl` | 운영자 | `{ts, voc_number, decision, trigger_condition, human_instruction, precedent_used}` — 판단·위임 이력, human-in-the-loop 선례 검색의 근거 |
+| `~/.voc-hub/handoff/<voc_number>.md` | 넘기는 쪽 Role(자동 해결자/운영자) | 다음 Role에게 그대로 전달해야 하는 본문(답변 초안, 최종 회신/내부 메일 본문 등)의 원문. 5.1 참고 |
 | VoC Hub API 자체 (`status`, `internal_memo` 등) | 모니터 | VoC의 시스템 정식 기록 — 별도 로그를 두지 않고 API 레코드를 그대로 신뢰한다 |
 | GitHub PR/커밋 이력 | 자동 해결자 | 코드 수정의 감사 기록은 저장소 자체가 시스템 of record |
+
+### 5.1 핸드오프 파일: 본문은 대화가 아니라 파일로 넘긴다
+
+세 Role은 서로 다른 대화창이라 공유 컨텍스트가 없고, Role 사이의 모든
+내용은 **사람이 한 대화창의 텍스트를 읽고 다른 대화창에 옮겨 적는 방식**으로
+전달됩니다. 판단(어느 Role을 부를지, reply/internal 중 무엇인지)은 짧아서
+이 방식이 안전하지만, **긴 자유 텍스트 본문**(답변 초안, 최종 회신/내부 메일
+본문)은 다릅니다 — 사람이 옮겨 적는 과정에서 일부가 요약되거나, 승인
+대기(pause) 후 재개(resume)하는 Role이 본문을 기억에 의존해 다시 조합하면서
+뒷부분이 잘리는 사고가 실제로 있었습니다(2026-08-29, JIRA 참고 문구
+누락).
+
+그래서 **본문 자체는 대화로 옮겨 적지 않고, 만든 쪽이 파일에 저장한 뒤
+받는 쪽이 그 파일을 직접 읽습니다** — 세 Role 모두 `Bash` 도구가 있어 같은
+파일시스템을 공유하므로 가능합니다.
+
+- 넘기는 쪽(자동 해결자 → 운영자, 운영자 → 모니터)은 본문이 확정되면
+  `~/.voc-hub/handoff/<voc_number>.md`에 다음 형식으로 저장합니다(따옴표
+  붙은 heredoc delimiter로 셸 치환을 막습니다):
+
+  ```bash
+  mkdir -p ~/.voc-hub/handoff
+  cat > ~/.voc-hub/handoff/<voc_number>.md <<'HANDOFF_EOF'
+  compose: reply
+  --- 본문 시작 ---
+  <실제 본문 원문>
+  --- 본문 끝 ---
+  HANDOFF_EOF
+  ```
+
+  저장 직후 `cat`으로 다시 읽어 의도한 내용과 바이트 단위로 같은지 확인한
+  뒤에야 사람에게 다음 단계를 안내합니다.
+- 사람에게 전달하는 안내문은 본문을 다시 옮기지 않고 **파일 경로만**
+  가리킵니다(예: "`~/.voc-hub/handoff/<voc_number>.md`를 읽고 판단해
+  달라고 `@voc-avatar-operator`에게 전해 주세요"). 사람이 옮겨 적어야 할
+  내용이 파일 경로 하나뿐이라, 중간에 요약·누락될 여지가 크게 줄어듭니다.
+- 받는 쪽은 그 대화에서 가장 먼저 `cat ~/.voc-hub/handoff/<voc_number>.md`로
+  파일을 읽고, `--- 본문 시작 ---`/`--- 본문 끝 ---` 사이 내용을 그 판단·발송의
+  유일한 본문 원본으로 취급합니다. 같은 대화에 사람이 프로세로 요약해서
+  붙여준 본문이 있어도, 파일 내용과 다르면 파일이 우선합니다.
+- 이 파일은 해당 voc_number의 **최신 핸드오프 스냅샷**일 뿐 감사 기록이
+  아닙니다 — 판단 이력의 시스템 of record는 여전히
+  `operator-decisions.jsonl`입니다. 재처리 시 덮어써도 무방합니다.
 
 ## 6. Agent Factory 등록 정보
 
