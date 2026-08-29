@@ -1,0 +1,7 @@
+{
+  "name": "voc-avatar-partner",
+  "description": "VoC 자동 해결 파트너 — VoC Hub를 감시·판단·응답하고 필요하면 GitHub PR까지 만드는 운영자·모니터·자동 해결자 3-role 협업 시스템과, 운영자의 human-in-the-loop 판단 이력을 열람·편집하는 로컬 대시보드.",
+  "version": "1.0.0",
+  "license": "Apache-2.0",
+  "author": { "name": "panicdna" }
+}
