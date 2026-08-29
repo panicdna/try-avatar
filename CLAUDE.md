@@ -44,3 +44,12 @@ curl -sS -H "Authorization: Bearer $AGENT_FACTORY_API_KEY" \
 두 마켓플레이스 모두 `source: directory` 라 경로를 그대로 참조한다. 디렉터리를 옮기면
 `cache-miss` 로 로드가 깨지므로, 옮길 때는 `marketplace remove --scope project` →
 `marketplace add <새 경로> --scope project` → 플러그인 재설치 순으로 재등록한다.
+
+`voc-avatar-marketplace` 마켓플레이스(이 레포 안 `./voc-avatar-marketplace`)에서 설치:
+`voc-avatar-partner`
+
+앞의 둘과 달리 이 마켓플레이스는 레포 안에 있어 레포와 함께 커밋·이동한다. 다만
+개발용 git worktree 등 임시 체크아웃에서 `marketplace add`를 실행했다면, 그 워크트리가
+사라진 뒤에는 마찬가지로 재등록이 필요하다 — 실제 장기 체크아웃 경로를 기준으로
+`marketplace remove` → `marketplace add ./voc-avatar-marketplace` → 플러그인
+재설치를 거친다.

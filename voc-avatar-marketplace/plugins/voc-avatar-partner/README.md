@@ -202,10 +202,18 @@ sequenceDiagram
 | Role | 자동 해결자 | `cae63e20-4b84-4052-afee-efb208c12aef` | `@voc-avatar-resolver` |
 | Skill (모니터에만 연결) | voc-hub-skills / voc-hub-responder | `7c5abcec-8690-4476-b554-69a88286eb25` | — |
 
-로컬 subagent 파일 위치: `~/.claude/agents/agent-factory/voc-avatar-{operator,monitor,resolver}.md`
+설치 방식: Claude Code 플러그인(`voc-avatar-partner`, `voc-avatar-marketplace` 마켓플레이스)으로 배포됩니다.
 
-> skill_id는 fake 서버 재시작에 안정적이지 않은 것으로 확인된 바 있습니다
-> (`archive/voc-autoresolve-avatar-registration.md` 참고). 재사용 전
+> **설치 전제조건:** `@voc-avatar-monitor`는 VoC Hub와의 모든 통신에
+> `voc-hub-responder` 스킬(별도 마켓플레이스 `voc-hub-skills`에서 배포)을 사용합니다.
+> `voc-avatar-partner`만 설치하면 이 스킬이 없어 모니터의 첫 동작부터 실패합니다 —
+> `voc-hub-skills` 마켓플레이스에서 `voc-hub-responder`를 별도로 설치해야 합니다.
+
+> skill_id는 fake 서버 재시작에 안정적이지 않은 것으로 확인된 바 있습니다 — 서버가
+> 재시작되면 같은 이름·owner로 재조회되면서 ID가 바뀌고, 이 과정에서 기존에 연결된
+> skills 링크가 에러 없이 조용히 빈 배열로 떨어질 수 있습니다(Card/Role/Task 자체의
+> ID는 재시작에도 유지됨 — Skill 카탈로그 항목만 이 문제가 있음). 재시작 이후엔
+> 항상 `GET /skills?q=<검색어>`로 현재 ID를 다시 확인하고, 재사용 전
 > `GET /skills/{id}`로 살아있는지 먼저 확인하세요.
 
 **아바타 카드 생성 결과** (한동구 계정, 웹 UI):
@@ -214,11 +222,16 @@ sequenceDiagram
 
 ## 7. 구현 상태
 
-세 Role은 각각 독립된 Claude Code subagent로 설치되어 있습니다:
+세 Role은 `voc-avatar-partner` 플러그인의 `agents/`에 번들되어 있고, 대시보드는 같은
+플러그인의 `commands/voc-operator-dashboard.md` 슬래시 커맨드로 제공됩니다. 설치:
 
-- `@voc-avatar-operator` — `~/.claude/agents/agent-factory/voc-avatar-operator.md`
-- `@voc-avatar-monitor` — `~/.claude/agents/agent-factory/voc-avatar-monitor.md`
-- `@voc-avatar-resolver` — `~/.claude/agents/agent-factory/voc-avatar-resolver.md`
+```bash
+claude plugin marketplace add ./voc-avatar-marketplace
+claude plugin install voc-avatar-partner@voc-avatar-marketplace --scope project
+```
+
+설치 후 `@voc-avatar-operator`, `@voc-avatar-monitor`, `@voc-avatar-resolver`로 각
+Role을 부를 수 있고, `/voc-operator-dashboard`로 대시보드를 띄울 수 있습니다.
 
 **셋은 서로를 자동으로 호출하지 않습니다.** 위 다이어그램의 화살표는
 "어느 Role이 어느 Role에게 무엇을 요청하는가"를 나타내지만, 실제 실행은
