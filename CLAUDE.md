@@ -53,3 +53,18 @@ curl -sS -H "Authorization: Bearer $AGENT_FACTORY_API_KEY" \
 사라진 뒤에는 마찬가지로 재등록이 필요하다 — 실제 장기 체크아웃 경로를 기준으로
 `marketplace remove` → `marketplace add ./voc-avatar-marketplace` → 플러그인
 재설치를 거친다.
+
+### voc-avatar-partner 사용 시 코디네이터(메인 세션) 규칙
+
+`voc-avatar-partner`의 3-Role(운영자·모니터·자동 해결자)을 다룰 때, 이
+메인 세션은 설계상 **코디네이터**다
+(`voc-avatar-marketplace/plugins/voc-avatar-partner/README.md` §3.1~3.2).
+
+**운영자가 내려야 할 판단(회신 여부·방식, PR 위임 여부, human-in-the-loop
+응답)을 메인 세션이 대신 내리지 않는다.** 정답을 이미 알고 있어도
+마찬가지다 — 모니터·자동 해결자의 결과를 받아 사람에게 "발송할까요?"라고
+직접 묻지 말고, 반드시 `@voc-avatar-operator` 서브에이전트를 실제로
+호출한다. 메인 세션이 대신 판단하면 사람에게 나가는 질문은 똑같아 보이지만,
+그 판단은 `~/.voc-hub/operator-decisions.jsonl`에 남지 않고 이후
+human-in-the-loop 선례 검색의 근거도 비게 된다 — 대화 로그만 봐서는 이
+차이가 드러나지 않는다.
