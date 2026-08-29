@@ -3,6 +3,7 @@ import socket
 import sys
 import tempfile
 import threading
+import time
 import unittest
 import urllib.error
 import urllib.request
@@ -210,15 +211,81 @@ class ApplyPatchDeleteTests(unittest.TestCase):
             self.assertIn(content_before_second, contents.values())
 
 
+class HandoffFileTests(unittest.TestCase):
+    def test_missing_dir_returns_empty_not_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dir_path = Path(tmp) / "handoff"  # 만든 적 없음
+            self.assertEqual(dash.list_handoff_files(dir_path), [])
+
+    def test_parses_compose_and_delimited_body(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "V1.md"
+            path.write_text(
+                "compose: reply\n--- 본문 시작 ---\n실제 본문\n두 번째 줄\n--- 본문 끝 ---\n",
+                encoding="utf-8",
+            )
+            item = dash.parse_handoff_file(path)
+            self.assertEqual(item["voc_number"], "V1")
+            self.assertEqual(item["compose"], "reply")
+            self.assertEqual(item["body"], "실제 본문\n두 번째 줄")
+            self.assertFalse(item["body_truncated"])
+
+    def test_missing_compose_and_delimiters_falls_back_to_whole_text(self):
+        # 형식을 안 지킨 파일이 와도 죽지 않고 전체 텍스트를 본문으로 취급한다 —
+        # 이 대시보드는 읽기 전용 현황판이지 형식 검증기가 아니다.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "V2.md"
+            path.write_text("그냥 자유 텍스트", encoding="utf-8")
+            item = dash.parse_handoff_file(path)
+            self.assertIsNone(item["compose"])
+            self.assertEqual(item["body"], "그냥 자유 텍스트")
+
+    def test_long_body_is_truncated_in_preview(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "V3.md"
+            long_body = "가" * (dash.HANDOFF_BODY_PREVIEW_LEN + 50)
+            path.write_text(
+                f"compose: internal\n--- 본문 시작 ---\n{long_body}\n--- 본문 끝 ---\n",
+                encoding="utf-8",
+            )
+            item = dash.parse_handoff_file(path)
+            self.assertTrue(item["body_truncated"])
+            self.assertEqual(len(item["body_preview"]), dash.HANDOFF_BODY_PREVIEW_LEN)
+            self.assertEqual(item["body"], long_body)  # 전체 본문은 안 잘림
+
+    def test_list_only_shows_files_currently_on_disk(self):
+        # 지운 파일은 다시 나타나지 않는다 — 별도 삭제 이력을 두지 않는다.
+        with tempfile.TemporaryDirectory() as tmp:
+            dir_path = Path(tmp)
+            (dir_path / "V1.md").write_text("compose: reply\n본문", encoding="utf-8")
+            (dir_path / "V2.md").write_text("compose: internal\n본문", encoding="utf-8")
+            items = dash.list_handoff_files(dir_path)
+            self.assertEqual({item["voc_number"] for item in items}, {"V1", "V2"})
+
+            (dir_path / "V1.md").unlink()
+            items_after_delete = dash.list_handoff_files(dir_path)
+            self.assertEqual({item["voc_number"] for item in items_after_delete}, {"V2"})
+
+    def test_list_ignores_non_markdown_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dir_path = Path(tmp)
+            (dir_path / "V1.md").write_text("compose: reply\n본문", encoding="utf-8")
+            (dir_path / "V1.md.bak-123").write_text("옛 버전", encoding="utf-8")
+            items = dash.list_handoff_files(dir_path)
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["voc_number"], "V1")
+
+
 class HttpServerTests(unittest.TestCase):
     def setUp(self):
         self.tmpdir = tempfile.TemporaryDirectory()
         self.path = Path(self.tmpdir.name) / "operator-decisions.jsonl"
+        self.handoff_dir = Path(self.tmpdir.name) / "handoff"
         self.entry = {"ts": "t1", "voc_number": "V1", "decision": "hold",
                       "trigger_condition": "", "human_instruction": "",
                       "precedent_used": ""}
         self.path.write_text(json.dumps(self.entry, ensure_ascii=False) + "\n", encoding="utf-8")
-        self.server = dash.build_server(self.path, port=0)  # 0 = OS가 빈 포트 할당
+        self.server = dash.build_server(self.path, port=0, handoff_dir=self.handoff_dir)  # 0 = OS가 빈 포트 할당
         self.port = self.server.server_address[1]
         self.thread = threading.Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -387,6 +454,33 @@ class HttpServerTests(unittest.TestCase):
     def test_unknown_path_returns_404(self):
         status, payload = self._request("GET", "/nope")
         self.assertEqual(status, 404)
+
+    def test_get_handoff_returns_empty_when_dir_missing(self):
+        status, payload = self._request("GET", "/api/handoff")
+        self.assertEqual(status, 200)
+        self.assertEqual(payload["items"], [])
+
+    def test_get_handoff_returns_parsed_files_sorted_newest_first(self):
+        self.handoff_dir.mkdir(parents=True)
+        (self.handoff_dir / "V1.md").write_text(
+            "compose: reply\n--- 본문 시작 ---\n첫 번째\n--- 본문 끝 ---\n", encoding="utf-8"
+        )
+        time.sleep(0.01)  # mtime이 확실히 갈리도록
+        (self.handoff_dir / "V2.md").write_text(
+            "compose: internal\n--- 본문 시작 ---\n두 번째\n--- 본문 끝 ---\n", encoding="utf-8"
+        )
+        status, payload = self._request("GET", "/api/handoff")
+        self.assertEqual(status, 200)
+        voc_numbers = [item["voc_number"] for item in payload["items"]]
+        self.assertEqual(voc_numbers, ["V2", "V1"])  # 최신 수정 순
+
+    def test_root_html_contains_handoff_section(self):
+        with urllib.request.urlopen(self._url("/")) as resp:
+            page_html = resp.read().decode("utf-8")
+        self.assertIn('id="handoff-table"', page_html)
+        self.assertIn('id="handoff-refresh"', page_html)
+        self.assertIn("/api/handoff", page_html)
+        self.assertIn(str(self.handoff_dir), page_html)
 
     def test_root_html_contains_expected_markup_and_conflict_copy(self):
         with urllib.request.urlopen(self._url("/")) as resp:

@@ -9,14 +9,20 @@ from __future__ import annotations
 
 import html
 import json
+import re
 import shutil
 import time
+from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
 DEFAULT_JSONL_PATH = Path.home() / ".voc-hub" / "operator-decisions.jsonl"
+DEFAULT_HANDOFF_DIR = Path.home() / ".voc-hub" / "handoff"
 DEFAULT_PORT = 8765
+BODY_START_MARKER = "--- 본문 시작 ---"
+BODY_END_MARKER = "--- 본문 끝 ---"
+HANDOFF_BODY_PREVIEW_LEN = 200
 EDITABLE_FIELDS = (
     "voc_number",
     "decision",
@@ -50,6 +56,58 @@ def parse_jsonl(path: Path) -> tuple[list[dict], list[dict]]:
         except json.JSONDecodeError:
             errors.append({"line_no": line_no, "raw": raw})
     return items, errors
+
+
+def parse_handoff_file(path: Path) -> dict:
+    """핸드오프 파일(~/.voc-hub/handoff/<voc_number>.md) 하나를 요약 정보로 만든다.
+
+    형식은 README.md §5.1 참고: `compose: <reply|internal>` 한 줄 + 구분자
+    (BODY_START_MARKER/BODY_END_MARKER)로 감싼 본문. compose 줄이나 구분자가
+    없는 파일이 와도 에러를 내지 않고 전체 텍스트를 본문으로 취급한다 —
+    이 대시보드는 읽기 전용 현황판이지 형식 검증기가 아니다.
+    """
+    text = path.read_text(encoding="utf-8")
+    compose_match = re.search(r"^compose:\s*(.*)$", text, re.MULTILINE)
+    compose = compose_match.group(1).strip() if compose_match else None
+
+    body = text
+    start = text.find(BODY_START_MARKER)
+    end = text.find(BODY_END_MARKER)
+    if start != -1 and end != -1 and end > start:
+        body = text[start + len(BODY_START_MARKER):end].strip("\n")
+
+    stat = path.stat()
+    return {
+        "voc_number": path.stem,
+        "compose": compose,
+        "body": body,
+        "body_preview": body[:HANDOFF_BODY_PREVIEW_LEN],
+        "body_truncated": len(body) > HANDOFF_BODY_PREVIEW_LEN,
+        "mtime": datetime.fromtimestamp(stat.st_mtime).isoformat(timespec="seconds"),
+        "size": stat.st_size,
+    }
+
+
+def list_handoff_files(dir_path: Path) -> list[dict]:
+    """디렉터리에 지금 실제로 남아 있는 핸드오프 파일만 나열한다.
+
+    지운 파일은 당연히 다시 나타나지 않는다 — 별도 삭제 이력을 두지 않고
+    파일시스템 상태를 그대로 신뢰한다(README.md §5.1: 이 파일은 최신
+    스냅샷일 뿐 감사 기록이 아니다). 디렉터리가 아직 없으면(핸드오프가 한
+    번도 생긴 적 없는 최초 상태) 에러가 아니라 빈 목록을 반환한다.
+    """
+    if not dir_path.exists():
+        return []
+    items = []
+    for entry in dir_path.glob("*.md"):
+        if not entry.is_file():
+            continue
+        try:
+            items.append(parse_handoff_file(entry))
+        except OSError:
+            continue
+    items.sort(key=lambda item: item["mtime"], reverse=True)
+    return items
 
 
 class ConflictError(Exception):
@@ -146,8 +204,12 @@ DASHBOARD_HTML = """<!doctype html>
   td textarea { width: 100%; box-sizing: border-box; }
   .row-actions button { margin-right: 0.4rem; }
   .ts-cell { white-space: nowrap; color: #666; font-size: 0.85em; }
-  #source-path { color: #666; font-size: 0.85em; margin-bottom: 0.5rem; }
-  #source-path code { background: #f5f5f5; padding: 0.1rem 0.3rem; border-radius: 3px; }
+  #source-path, #handoff-dir { color: #666; font-size: 0.85em; margin-bottom: 0.5rem; }
+  #source-path code, #handoff-dir code { background: #f5f5f5; padding: 0.1rem 0.3rem; border-radius: 3px; }
+  h2 { font-size: 1.05rem; margin-top: 2.5rem; }
+  #handoff-refresh { margin-bottom: 0.5rem; }
+  .handoff-body-cell button { margin-top: 0.3rem; }
+  .handoff-empty-cell { color: #666; }
 </style>
 </head>
 <body>
@@ -169,6 +231,16 @@ DASHBOARD_HTML = """<!doctype html>
   <option value="reply"><option value="internal">
   <option value="pr_delegate"><option value="hold">
 </datalist>
+
+<h2>핸드오프 파일 현황</h2>
+<div id="handoff-dir">디렉터리: <code>__VOC_HANDOFF_DIR__</code></div>
+<button id="handoff-refresh">새로고침</button>
+<table id="handoff-table">
+  <thead>
+    <tr><th>voc_number</th><th>compose</th><th>수정 시각</th><th>크기</th><th>본문</th></tr>
+  </thead>
+  <tbody id="handoff-body"></tbody>
+</table>
 
 <script>
 const EDITABLE_FIELDS = ["voc_number", "decision", "trigger_condition", "human_instruction", "precedent_used"];
@@ -321,13 +393,80 @@ async function deleteEntry(original) {
 
 document.getElementById("search-input").addEventListener("input", () => renderTable(allItems));
 loadEntries();
+
+async function loadHandoff() {
+  const res = await fetch("/api/handoff");
+  const data = await res.json();
+  renderHandoffTable(data.items);
+}
+
+function renderHandoffTable(items) {
+  const tbody = document.getElementById("handoff-body");
+  tbody.innerHTML = "";
+  if (items.length === 0) {
+    const tr = document.createElement("tr");
+    const td = document.createElement("td");
+    td.colSpan = 5;
+    td.className = "handoff-empty-cell";
+    td.textContent = "핸드오프 파일이 없습니다.";
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    return;
+  }
+  items.forEach(item => tbody.appendChild(renderHandoffRow(item)));
+}
+
+function renderHandoffRow(item) {
+  const tr = document.createElement("tr");
+
+  const vocCell = document.createElement("td");
+  vocCell.textContent = item.voc_number;
+  tr.appendChild(vocCell);
+
+  const composeCell = document.createElement("td");
+  composeCell.textContent = item.compose || "—";
+  tr.appendChild(composeCell);
+
+  const mtimeCell = document.createElement("td");
+  mtimeCell.className = "ts-cell";
+  mtimeCell.textContent = item.mtime;
+  tr.appendChild(mtimeCell);
+
+  const sizeCell = document.createElement("td");
+  sizeCell.textContent = item.size + " B";
+  tr.appendChild(sizeCell);
+
+  const bodyCell = document.createElement("td");
+  bodyCell.className = "handoff-body-cell";
+  const bodySpan = document.createElement("span");
+  bodySpan.textContent = item.body_preview + (item.body_truncated ? "…" : "");
+  bodyCell.appendChild(bodySpan);
+  if (item.body_truncated) {
+    const toggleBtn = document.createElement("button");
+    toggleBtn.textContent = "전체보기";
+    let expanded = false;
+    toggleBtn.addEventListener("click", () => {
+      expanded = !expanded;
+      bodySpan.textContent = expanded ? item.body : (item.body_preview + "…");
+      toggleBtn.textContent = expanded ? "접기" : "전체보기";
+    });
+    bodyCell.appendChild(document.createElement("br"));
+    bodyCell.appendChild(toggleBtn);
+  }
+  tr.appendChild(bodyCell);
+
+  return tr;
+}
+
+document.getElementById("handoff-refresh").addEventListener("click", () => loadHandoff());
+loadHandoff();
 </script>
 </body>
 </html>
 """
 
 
-def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
+def make_handler(jsonl_path: Path, handoff_dir: Path) -> type[BaseHTTPRequestHandler]:
     class Handler(BaseHTTPRequestHandler):
         def _send_json(self, status: int, payload: Any) -> None:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -363,12 +502,18 @@ def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
             if self.path == "/":
                 page = DASHBOARD_HTML.replace(
                     "__VOC_JSONL_PATH__", html.escape(str(jsonl_path))
+                ).replace(
+                    "__VOC_HANDOFF_DIR__", html.escape(str(handoff_dir))
                 )
                 self._send_html(200, page)
                 return
             if self.path == "/api/entries":
                 items, errors = parse_jsonl(jsonl_path)
                 self._send_json(200, {"items": items, "parse_errors": errors})
+                return
+            if self.path == "/api/handoff":
+                items = list_handoff_files(handoff_dir)
+                self._send_json(200, {"items": items})
                 return
             self._send_json(404, {"error": "not_found"})
 
@@ -435,10 +580,17 @@ def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
     return Handler
 
 
-def build_server(jsonl_path: Path, port: int) -> ThreadingHTTPServer:
+def build_server(
+    jsonl_path: Path, port: int, handoff_dir: Path | None = None
+) -> ThreadingHTTPServer:
     """포트가 이미 쓰이는 중이면 OSError를 그대로 전파한다 — 호출자(main)가
-    "이미 실행 중일 수 있음" 메시지로 바꿔 보여준다."""
-    handler_cls = make_handler(jsonl_path)
+    "이미 실행 중일 수 있음" 메시지로 바꿔 보여준다.
+
+    handoff_dir을 생략하면(기존 호출부 하위 호환) DEFAULT_HANDOFF_DIR을 쓴다.
+    """
+    if handoff_dir is None:
+        handoff_dir = DEFAULT_HANDOFF_DIR
+    handler_cls = make_handler(jsonl_path, handoff_dir)
     return ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
 
 
@@ -449,11 +601,13 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="VoC Operator 이력 대시보드")
     parser.add_argument("--file", type=Path, default=DEFAULT_JSONL_PATH,
                          help="대상 JSONL 파일 경로")
+    parser.add_argument("--handoff-dir", type=Path, default=DEFAULT_HANDOFF_DIR,
+                         help="핸드오프 파일 디렉터리 경로")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     args = parser.parse_args(argv)
 
     try:
-        server = build_server(args.file, args.port)
+        server = build_server(args.file, args.port, args.handoff_dir)
     except OSError:
         print(
             f"포트 {args.port}가 이미 사용 중입니다. 이미 실행 중인 대시보드가 "
@@ -462,7 +616,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    print(f"VoC Operator 대시보드: http://localhost:{args.port}  (대상 파일: {args.file})")
+    print(
+        f"VoC Operator 대시보드: http://localhost:{args.port}  "
+        f"(대상 파일: {args.file}, 핸드오프 디렉터리: {args.handoff_dir})"
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:
