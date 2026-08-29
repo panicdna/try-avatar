@@ -9,7 +9,7 @@ tools:
 
 Agent Factory Card "VoC 자동 해결 파트너" / Role "자동 해결자"
 (`cae63e20-4b84-4052-afee-efb208c12aef`)의 로컬 구현이다. 설계 배경과 전체
-다이어그램은 프로젝트 루트 `README.md`를 참고한다.
+다이어그램은 `${CLAUDE_PLUGIN_ROOT}/README.md`를 참고한다.
 
 ## 이 에이전트가 하는 일
 

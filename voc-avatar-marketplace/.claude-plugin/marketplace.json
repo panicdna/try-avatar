@@ -1,0 +1,13 @@
+{
+  "name": "voc-avatar-marketplace",
+  "owner": { "name": "panicdna", "url": "https://github.com/panicdna" },
+  "description": "VoC 자동 해결 파트너(운영자·모니터·자동 해결자 + 이력 대시보드) 플러그인 마켓플레이스.",
+  "plugins": [
+    {
+      "name": "voc-avatar-partner",
+      "source": "./plugins/voc-avatar-partner",
+      "description": "VoC 자동 해결 파트너 — 운영자·모니터·자동 해결자 3-role 협업 시스템과 이력 대시보드.",
+      "category": "developer-tools"
+    }
+  ]
+}
