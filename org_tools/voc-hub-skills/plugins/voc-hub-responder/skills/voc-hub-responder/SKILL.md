@@ -1,24 +1,26 @@
 ---
 name: voc-hub-responder
-description: Use when a person is triaging VoC Hub records through the X-API-Key integration API on any instance, local or deployed, and needs open VoCs listed, a draft saved, a status moved, or a customer or internal reply mailed. VoC 목록 확인, VoC 대응, 답변 발송, 담당자 내부 발송, 상태 변경 요청에 사용한다. Triggers on /api/integrations/v1/vocs, compose raw/reply/internal, Idempotency-Key, voc_number, or an invalid_api_key, validation_error, no_internal_recipient, or outcome_unknown error envelope.
+description: Use when triaging VoC Hub records through the X-API-Key integration API on any instance, local or deployed — whether a person is running it interactively or it runs unattended — and needs open VoCs listed, a draft saved, a status moved, or a customer or internal reply mailed. VoC 목록 확인, VoC 대응, 답변 발송, 담당자 내부 발송, 상태 변경 요청에 사용한다. Triggers on /api/integrations/v1/vocs, compose raw/reply/internal, Idempotency-Key, voc_number, or an invalid_api_key, validation_error, no_internal_recipient, or outcome_unknown error envelope.
 ---
 
 # VoC Hub — VoC 대응 (통합 API)
 
-`X-API-Key` 통합 API(`/api/integrations/v1/vocs`)로 VoC 를 골라 사람에게 보여주고,
-승인받은 뒤에만 메일을 내보낸다.
+`X-API-Key` 통합 API(`/api/integrations/v1/vocs`)로 VoC 를 조회하고, 초안을 저장하고,
+필요하면 발송까지 이 스킬 하나로 끝낸다. 사람이 옆에서 지켜보며 대화형으로 쓸 수도,
+스케줄·다른 서비스가 무인으로 호출할 수도 있다 — 이 문서는 어느 쪽으로 불렸는지 따로
+구분하지 않는다. 발송은 별도 승인 단계 없이, 아래 절차가 정한 대로 이루어진다.
 
-**핵심 원칙 둘:**
+**핵심 원칙:**
 
-1. **발송은 사람이 "어느 모드로, 누구에게" 를 보고 승인한 뒤에만 한다.**
-2. **`compose` 가 수신자다.** 요청은 수신자를 지정하지 못한다. 모드를 바꾸는 것은
-   수신자를 바꾸는 것이므로 **승인을 다시 받는다.**
+- **`compose` 가 수신자를 정한다.** 요청은 수신자를 지정하지 못한다(`to`/`cc`/`bcc`
+  를 실으면 422). `no_internal_recipient`/`ignored_recipient` 오류를 만났다고
+  **`compose` 를 바꿔 재시도하지 않는다** — 그건 대상 자체를 바꾸는 것과 같다. 멈추고
+  오류를 그대로 보고한다(자세한 계산 방식은 "발송 3종" 참고).
+- **결과는 `jq` 로 펼쳐서 그대로 남긴다** — 요약·생략하지 않는다. 사람이 나중에 로그만
+  보고도 무엇이 왜 어떻게 나갔는지(또는 왜 막혔는지) 되짚을 수 있어야 한다.
 
-같은 API 를 다루는 `responding-to-voc` 스킬은 **무인·외부 호출**용 정책 스킬이라
-응답 비노출·임시파일 파기를 강제한다. 이 스킬은 **사람이 옆에 있는 로컬 운영**용이라
-결과를 `jq` 로 펼쳐 보여준다. 둘을 섞지 않는다.
-
-근거·검증 기록·오류 사전 전체는 `docs/voc-web-triage-runbook.md` 에 있다.
+이 문서는 독립적으로 동작하도록 필요한 근거·오류 사전·검증 기록을 모두 아래에
+담아 둔다. 다른 스킬이나 저장소 내부 문서를 찾아볼 필요는 없다.
 
 ## 전제
 
@@ -28,8 +30,9 @@ description: Use when a person is triaging VoC Hub records through the X-API-Key
 
 ### 1. 두 값이 있는지 본다
 
-변수 이름은 형제 스킬 `responding-to-voc` 와 같다. 이미 설정해 뒀다면 그대로 쓰인다.
-값은 환경변수로 와도 되고 키 파일(`~/.voc-hub.env`)로 와도 된다 — 아래 2 를 따랐다면 후자다.
+필요한 값은 `VOC_INTEGRATION_BASE_URL` 과 `VOC_INTEGRATION_API_KEY` 둘이다. 이미
+설정해 뒀다면 그대로 쓰인다. 값은 환경변수로 와도 되고 키 파일(`~/.voc-hub.env`)로
+와도 된다 — 아래 2 를 따랐다면 후자다.
 
 호스트를 지정하지 않았으면 아래 순서로 닿는 곳을 고른다. **명시한 값이 언제나 이긴다.**
 
@@ -53,9 +56,9 @@ if [ -z "${VOC_INTEGRATION_BASE_URL:-}" ]; then
     fi
   done
 fi
-: "${VOC_INTEGRATION_BASE_URL:?두 호스트 모두 닿지 않는다 — 사용자에게 확인}"
+: "${VOC_INTEGRATION_BASE_URL:?두 호스트 모두 닿지 않는다 — 멈추고 보고한다}"
 echo "인스턴스: $VOC_INTEGRATION_BASE_URL"   # 키 가드보다 앞 — 키가 없어도 보여야 한다
-: "${VOC_INTEGRATION_API_KEY:?키가 없다 — 사용자에게 요청}"
+: "${VOC_INTEGRATION_API_KEY:?키가 없다 — 멈추고 요청한다}"
 export BASE="$VOC_INTEGRATION_BASE_URL/api/integrations/v1/vocs"
 export KEY="$VOC_INTEGRATION_API_KEY"
 ```
@@ -64,12 +67,12 @@ export KEY="$VOC_INTEGRATION_API_KEY"
 살아 있다는 뜻**이라 `curl` 은 성공으로 끝난다. `-f` 를 붙이면 401 을 실패로 봐서 살아
 있는 호스트를 건너뛰므로 붙이지 않는다.
 
-**고른 인스턴스를 사람에게 반드시 보여준다.** 기본값이 운영이므로, 자동 선택을 확인 없이
+**고른 인스턴스를 결과에 반드시 남긴다.** 기본값이 운영이므로, 자동 선택을 그냥
 넘기면 로컬인 줄 알고 운영에 붙어 고객에게 시험 메일이 나간다. 반대 방향도 조용하다 —
 운영 호스트가 방화벽·타임아웃·**인증서 미신뢰**로 실패하면 그냥 로컬로 떨어진다. 그래서
 위 스니펫은 건너뛴 호스트마다 `닿지 않음:` 을 찍고, **인스턴스 줄을 키 가드보다 앞에**
-둔다 — 키가 없는 첫 사용자가 정확히 그 줄을 못 보는 순서였다. 향하는 곳이 예상과 다르면
-멈추고 사용자에게 확인한다.
+둔다 — 키가 없는 첫 실행이 정확히 그 줄을 못 보는 순서였다. 향하는 곳이 예상과 다르면
+멈추고 그대로 보고한다.
 
 **키는 절대 출력하지 않는다.** `echo "$KEY"` 도, 로그·요약에 남기는 것도 하지 않는다.
 필요한 것은 값이 있느냐지 값이 무엇이냐가 아니다.
@@ -224,13 +227,15 @@ curl -s "$BASE/V260806" -H "X-API-Key: $KEY" \
 `404 voc_not_found` 는 번호 오타 **또는** 키 스코프 밖이다. 둘이 구분되지 않으므로
 번호를 다시 치기 전에 스코프부터 의심한다.
 
-사람에게 원문을 보여줄 때는 `message` 를 그대로 옮긴다. 요약해서 보여주면 사용자가
-답변을 검토할 근거가 사라진다.
+원문을 옮길 때는 `message` 를 그대로 남긴다. 요약해서 남기면 나중에 검토할 근거가
+사라진다.
 
-### 2. 사람에게 제시하고 고르게 한다 (human-in-the-loop)
+### 2. 처리 대상을 정한다
 
-각 건마다 **`voc_number`, `status`, `customer_email`, `issue_owner_email`** 을 표로
-보여준다. 사용자가 대상을 고르기 전에는 아무것도 쓰지(write) 않는다.
+각 건의 **`voc_number`, `status`, `customer_email`, `issue_owner_email`** 을 `jq` 로
+그대로 펼쳐 남긴 뒤, 그 목록을 근거로 어떤 건을 어떻게 처리할지 정한다. 사람이 옆에
+있다면 그 표를 보고 고를 수도 있고, 무인 호출이라면 주어진 기준(상태·담당자 등)으로
+스스로 고른다 — 어느 쪽이든 무엇을 근거로 골랐는지는 남긴다.
 
 이 표면의 키는 처음부터 끝까지 `voc_number`("V260805") 다. 정수 `id` 는 `/web/*` 것이다.
 
@@ -258,9 +263,10 @@ curl -s -X PATCH "$BASE/V260805" -H "X-API-Key: $KEY" \
 시스템 밖으로 안 나간다는 뜻이 아니다. 아무것도 바뀌지 않으면(`changed:false`) 연동도
 돌지 않는다.
 
-### 4. 발송 전에 "모드 · 수신 · 제목" 을 확인시킨다
+### 4. "모드 · 수신 · 제목" 을 계산해 남긴다
 
-이 API 에는 발송 전 미리보기가 없다. 대신 세 줄을 사람에게 보여주고 승인을 받는다.
+이 API 에는 발송 전 미리보기가 없다. 대신 아래 세 줄을 발송 직전에 계산해 결과에
+남긴다 — 나중에 무엇이 왜 누구에게 나갔는지 되짚을 유일한 단서이기 때문이다.
 
 ```
 인스턴스: https://ssai.samsungds.net:7942   ← 운영이면 실제 고객에게 나간다
@@ -282,10 +288,11 @@ curl -s -X PATCH "$BASE/V260805" -H "X-API-Key: $KEY" \
 수신·제목을 요청이 못 정한다는 것은 확인해 볼 수 있다. `to` 나 `subject` 를 실어 보내면
 `extra="forbid"` 때문에 **본문 검증 단계에서 422** 로 끊겨 발송이 일어나지 않는다.
 
-### 5. 명시 승인 후에만 발송한다
+### 5. compose 를 정했으면 바로 발송한다
 
-"보내"·"발송해" 같은 명시 지시가 있어야 `POST …/reply` 를 호출한다. 초안 저장 승인은
-발송 승인이 아니고, 고객 회신 승인은 내부 발송 승인이 아니다.
+목적(단발 통지·고객 회신·담당자 이관)에 맞는 `compose` 를 정했으면 별도 확인 단계 없이
+`POST …/reply` 를 호출한다. 한 번 정한 `compose` 는 오류가 나도 바꿔서 재시도하지
+않는다(핵심 원칙 참고) — 오류는 그대로 보고하고 멈춘다.
 
 ## 발송 3종
 
@@ -352,6 +359,18 @@ curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $ID
 상태는 안 바뀐 것이고, `warnings` 는 삼키지 말고 그대로 보고한다 — `APP_BASE_URL` 이
 없으면 `missing_voc_hub_link` 가 붙고 **링크 없는 내부 메일이 그대로 나간다.**
 
+## 검증 기록
+
+아래 세 가지는 실제 로컬 fake 스택에서 호출해 받은편지함으로 확인된 결과다
+(2026-08-24). 새 인스턴스에 처음 붙일 때는 이 결과가 재현되는지 한 번은 실제로
+확인한다.
+
+| compose | 수신 | 제목 | 본문 |
+|---|---|---|---|
+| `raw` | 고객 | `[V260805] VoC reply - …` | 보낸 그대로 |
+| `reply` | 고객 | `[V260805] VoC reply - …` | `[답변]` + `[질문 원문]` 인용 |
+| `internal` | 담당자 | `(Internal Only) [V260807] …` | 인용 + VoC Hub 링크 + 안내 |
+
 ## 오류
 
 | code | 조치 |
@@ -362,8 +381,8 @@ curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $ID
 | `ignored_recipient` (400) | 수신자가 전부 `@test.com` 등. 멈추고 보고 |
 | `idempotency_conflict` (409) | 새 키로. 같은 키를 다른 요청에 다시 쓰지 않는다 |
 | `operation_in_progress` (409) | **완전히 같은 요청 + 같은 키**로 재조회. 새 시도를 만들지 않는다 |
-| `outcome_unknown` (409) | 자동 재발송 금지. 사람이 메일함 확인 |
-| `mail_send_failed` (502) | 새 Idempotency-Key 필요. 사용자 재승인 후에만 |
+| `outcome_unknown` (409) | 자동 재발송 금지. 멈추고 결과에 그대로 남겨 나중에 메일함으로 확인하게 한다 |
+| `mail_send_failed` (502) | 새 `Idempotency-Key` 로 한 번만 다시 시도한다. 두 번째도 실패하면 멈추고 보고 — 반복 재시도하지 않는다 |
 
 `retry_action` 이 조치를 그대로 알려준다: `same_request` / `new_idempotency_key` /
 `manual_review` / `none`.
@@ -384,10 +403,10 @@ curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $ID
 | `compose` 를 생략 | 기본값이 `raw` 라 **조립 없이 고객에게 나간다.** 무발송이 아니다 |
 | `"voc_id": 5` / `"voc_status": …` | `/web/*` 의 이름이다. 여기서는 경로에 `voc_number`, 본문에 `status` |
 | `"to"`/`"subject"` 를 실어 보냄 | `extra="forbid"` 라 422. 수신자와 제목은 서버가 정한다 |
-| `no_internal_recipient` 를 만나 `compose` 를 바꿔 재시도 | 수신자가 바뀐다. 멈추고 사용자에게 되돌린다 |
+| `no_internal_recipient` 를 만나 `compose` 를 바꿔 재시도 | 수신자가 바뀐다. 멈추고 그대로 보고한다 |
 | `-d '{"body":"'"$VAR"'"}'` | 한글·따옴표·개행에서 깨진다. `jq -n --arg` + `--data-binary @` |
 | `IDEM` 을 안 채우고 실행 | curl 이 헤더를 빠뜨려 422. `: "${IDEM:?}"` 가드를 앞에 둔다 |
-| `page` 없이 목록 조회 | 커서 모드로 빠진다. 사람에게 보여줄 목록에는 `page=1` |
+| `page` 없이 목록 조회 | 커서 모드로 빠진다. 목록을 뽑을 때는 `page=1` |
 | `.items[]` 만 있는 `jq` 필터 | 오류가 "결과 0건" 으로 보인다. `.error` 분기를 넣는다 |
 | 목록이 비어서 "처리할 게 없다" | 키 스코프 밖일 수 있다 |
 | 저장된 `reply_body` 를 `compose:"reply"` 로 재발송 | 이미 조립본이면 인용이 한 겹 더 감긴다. `[질문 원문]` 유무 확인 |
@@ -402,14 +421,13 @@ curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $ID
 ## 멈춰야 하는 신호
 
 - **키를 대신 발급하려 한다** (관리자 쿠키를 따거나 `/admin/api-keys` 를 부르려 한다)
-- **어느 인스턴스에 붙었는지 보여주지 않고 발송한다** — 기본값이 운영이다
+- **어느 인스턴스에 붙었는지 남기지 않고 발송한다** — 기본값이 운영이다
 - 키를 화면·요약·로그에 출력한다
-- 사용자가 대상을 고르지 않았는데 `POST …/reply` 나 `PATCH` 를 호출하려 한다
-- 저장 승인을 발송 승인으로 해석한다
-- **고객 회신 승인을 내부 발송 승인으로 해석한다** (또는 그 반대)
 - `no_internal_recipient` / `ignored_recipient` 를 만나고 `compose` 를 바꿔 우회한다
 - `outcome_unknown` 을 보고 자동으로 재발송한다
-- 여러 건을 "한 번에 처리해 드릴게요" 하고 일괄 발송한다
+- 여러 건을 처리하면서 건별 `Idempotency-Key`·결과를 남기지 않고 뭉뚱그려 보고한다
 - 발송 실패(`status != "success"`)나 `warnings` 를 요약에서 생략한다
 
-모두 **멈추고 사용자에게 확인**을 뜻한다.
+모두 **멈추고 그 사실을 결과에 그대로 남긴다** — 나중에 로그만 보고도 무엇이 왜
+막혔는지 알 수 있어야 한다.
+  

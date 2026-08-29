@@ -1,12 +1,17 @@
 # 보관됨 — 구버전 스냅샷
 
 이 폴더의 파일들은 **2026-08-27 3-Role 재설계 이전** 시점의 기록입니다.
-최신 설계는 프로젝트 루트의 [`../README.md`](../README.md)를 보세요.
+최신 설계는 프로젝트 루트의 [`../README.md`](../README.md)와
+[`../voc-avatar-export/`](../voc-avatar-export/)를 보세요.
 
 | 파일 | 왜 구버전인가 |
 |---|---|
-| `voc-autoresolve-avatar-registration.md` | 재설계 전 단일 흐름(자동 해결/수동 트리아지/이력 리포트) 구조를 기록한 문서. Role 이름·Task 내용이 지금 서버 상태와 다름. |
-| `voc-autoresolve-avatar-export.zip` / `voc-autoresolve-avatar-export/` | 같은 시점의 Card/Role/Task JSON 스냅샷 + 재생성 스크립트. `reimport.sh`로 이걸 재생성하면 **구버전 설계**가 만들어지므로, 최신 서버 상태를 재현하려면 먼저 서버에서 다시 fresh export해야 한다. |
+| `voc-autoresolve-avatar-registration.md` | 재설계 전 단일 흐름(자동 해결/수동 트리아지/이력 리포트) 구조를 기록한 문서. Role 이름·Task 내용이 지금 서버 상태와 다르지만, skill_id가 fake 서버 재시작에 안정적이지 않다는 등 지금도 유효한 운영 관찰은 남아 있어 루트 `README.md`에서 여전히 인용된다. |
+| `voc-autoresolve-avatar-export.zip` | 같은 시점의 Card/Role/Task JSON 스냅샷 + 재생성 스크립트. `reimport.sh`로 이걸 재생성하면 **구버전 설계**가 만들어지므로, 최신 서버 상태를 재현하려면 먼저 서버에서 다시 fresh export해야 한다. |
 
 지우지 않고 남겨둔 이유: 설계가 어떻게 바뀌어왔는지 추적하고, `reimport.sh`의
 구조(Task→Role→Card 순서, skill_id 검증 로직)는 여전히 참고할 가치가 있어서다.
+
+> 2026-08-29: 이 zip을 압축 해제해둔 `voc-autoresolve-avatar-export/` 폴더는
+> zip 내용과 완전히 동일한 중복(게다가 자기 자신을 한 번 더 품은 중첩 복사본까지
+> 있었음)이라 삭제했다. 이 zip이 유일하게 남은 원본 스냅샷이다.
