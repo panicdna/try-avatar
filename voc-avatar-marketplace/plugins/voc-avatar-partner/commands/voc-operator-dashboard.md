@@ -2,12 +2,12 @@
 description: VoC Operator 이력(~/.voc-hub/operator-decisions.jsonl) 대시보드를 로컬에 띄운다
 ---
 
-`scripts/voc_operator_dashboard.py`를 백그라운드로 실행해 VoC Operator 이력
-대시보드를 띄운다.
+`${CLAUDE_PLUGIN_ROOT}/scripts/voc_operator_dashboard.py`를 백그라운드로 실행해
+VoC Operator 이력 대시보드를 띄운다.
 
 1. Bash로 다음을 백그라운드 실행한다(`run_in_background: true`):
    ```bash
-   python3 scripts/voc_operator_dashboard.py
+   python3 "${CLAUDE_PLUGIN_ROOT}/scripts/voc_operator_dashboard.py"
    ```
 2. 몇 초 뒤 해당 백그라운드 프로세스의 출력을 확인한다.
    - `VoC Operator 대시보드: http://localhost:8765 ...` 가 보이면 그 URL을
