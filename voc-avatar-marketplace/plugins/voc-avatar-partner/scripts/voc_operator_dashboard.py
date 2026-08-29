@@ -7,6 +7,7 @@
 """
 from __future__ import annotations
 
+import html
 import json
 import shutil
 import time
@@ -145,9 +146,12 @@ DASHBOARD_HTML = """<!doctype html>
   td textarea { width: 100%; box-sizing: border-box; }
   .row-actions button { margin-right: 0.4rem; }
   .ts-cell { white-space: nowrap; color: #666; font-size: 0.85em; }
+  #source-path { color: #666; font-size: 0.85em; margin-bottom: 0.5rem; }
+  #source-path code { background: #f5f5f5; padding: 0.1rem 0.3rem; border-radius: 3px; }
 </style>
 </head>
 <body>
+<div id="source-path">참고 파일: <code>__VOC_JSONL_PATH__</code></div>
 <h1>VoC Operator 이력 대시보드</h1>
 <div id="parse-error-banner"></div>
 <input id="search-input" type="text" placeholder="voc_number 또는 decision 검색">
@@ -357,7 +361,10 @@ def make_handler(jsonl_path: Path) -> type[BaseHTTPRequestHandler]:
 
         def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler 관례)
             if self.path == "/":
-                self._send_html(200, DASHBOARD_HTML)
+                page = DASHBOARD_HTML.replace(
+                    "__VOC_JSONL_PATH__", html.escape(str(jsonl_path))
+                )
+                self._send_html(200, page)
                 return
             if self.path == "/api/entries":
                 items, errors = parse_jsonl(jsonl_path)
