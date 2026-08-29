@@ -2,6 +2,7 @@
   "enabledPlugins": {
     "avatar-onboarding@skill-local": true,
     "agent-factory-api@skill-local": true,
-    "bedrock-cost-report@skill-local": true
+    "bedrock-cost-report@skill-local": true,
+    "voc-avatar-partner@voc-avatar-marketplace": true
   }
 }
