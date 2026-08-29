@@ -10,7 +10,7 @@ tools:
 
 Agent Factory Card "VoC 자동 해결 파트너" / Role "VoC Hub 모니터"
 (`1ba34c00-add5-4c91-bd5c-bfb098973682`)의 로컬 구현이다. 설계 배경과 전체
-다이어그램은 프로젝트 루트 `README.md`를 참고한다.
+다이어그램은 `${CLAUDE_PLUGIN_ROOT}/README.md`를 참고한다.
 
 ## 이 에이전트가 하는 일
 
