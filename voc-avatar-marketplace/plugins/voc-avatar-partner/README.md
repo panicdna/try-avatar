@@ -317,7 +317,60 @@ human-in-the-loop로 올 때 선례로 쓰일 수 있습니다
 `@voc-avatar-operator`에게 전달하라"고 안내하도록 되어 있습니다
 (`agents/voc-avatar-resolver.md`의 역할 경계 참고).
 
-### 4.2 human-in-the-loop — 처음 겪는 상황 vs 선례가 있는 상황
+### 4.2 선례 재활용 — 과거 해결 사례는 "재확인 후" 재사용한다
+
+과거에 해결된 VoC와 표면적으로 비슷한 질문이 다시 들어오면, 매번
+자동 해결자에게 처음부터 전면 조사를 시키는 대신 "그 답이 지금도
+유효한지"만 가볍게 재확인시켜 더 빠르게 처리할 수 있습니다. 다만 이걸
+설계할 때 두 가지 방식을 두고 저울질했습니다:
+
+1. **재확인형**: 유사 선례가 있어도 자동 해결자에게 "이 선례가 지금도
+   맞는지" 확인받은 뒤에만 재사용한다.
+2. **자체판단형**: 운영자가 스스로(RAG 유사도 등으로) "이 정도면 같은
+   건이니 그대로 써도 된다"고 판단해 바로 발송한다.
+
+**2번은 채택하지 않았습니다.** 질문 문구가 비슷해 보이는 것과 "그 답이
+지금도 기술적으로 맞다"는 건 다른 층위의 판단입니다 — 관련 코드는
+그 사이 바뀌었을 수 있고, 운영자에게는 그걸 확인할 수단(코드베이스
+접근)이 없습니다. 이건 3.3에서 정리한 원칙("응답 본문에 담기는 사실을
+스스로 지어내지 않는다")과 정확히 같은 이유로 막아야 하는 경로입니다 —
+검증 없이 과거 답을 재사용하는 것도 결국 운영자 자신의 추정으로 사실을
+확정하는 것이기 때문입니다.
+
+```mermaid
+sequenceDiagram
+    participant O as 운영자 (@voc-avatar-operator)
+    participant M as 모니터 (@voc-avatar-monitor)
+    participant R as 자동 해결자 (@voc-avatar-resolver)
+
+    O->>M: 과거 해결된(status=resolved) VoC 목록 요청
+    M-->>O: voc_number·message·reply_body 그대로 전달
+    O->>O: 표면적으로 유사한 후보 탐색 (여기까지는 운영자 재량)
+    O->>R: 신규 VoC + 유사 선례(질문·답변·evidence) 위임 — "지금도 유효한가?"
+    alt 재확인됨 (근거 파일 변경 없음, 사안도 동일)
+        R-->>O: 선례 답변 재사용(또는 사소한 수정) + 동일 evidence
+        O->>O: 2차 확정 (§2-3) + 이력 기록(precedent_used, evidence)
+        O->>M: "이 파일을 읽고 발송해 달라" 지시
+    else 재확인 실패 (근거 파일 변경됨 / 사안이 실은 다름)
+        R-->>O: "재확인 실패 — 전면 조사로 전환"
+        O->>R: 자동 해결자 위임(전면 조사)으로 다시 위임
+        Note over O,R: 이후 흐름은 4.1과 동일
+    end
+```
+
+"질문이 표면적으로 비슷한가"를 알아보는 것까지는 운영자의 재량입니다
+(4.3의 human-in-the-loop 선례 검색과 같은 성격) — 하지만 "그 답이
+지금도 맞는가"는 항상 자동 해결자가 확인합니다. 이 재확인은 전면
+조사가 아니라 가벼운 확인(관련 파일의 git 이력 확인 정도)이라, 실제로
+아무것도 안 바뀐 대부분의 경우엔 4.1의 전체 흐름을 새로 도는 것보다
+훨씬 빠르게 끝납니다(`agents/voc-avatar-resolver.md` 절차 2번).
+
+`operator-decisions.jsonl`에 `evidence` 필드(자동 해결자가 인용한
+저장소 파일)가 있는 판단만 재확인 대상이 됩니다 — 근거 없이 확정된
+판단은 애초에 존재할 수 없고(3.3 참고), 근거가 없으면 재확인할 것도
+없으니 자동으로 전면 조사로 넘어갑니다.
+
+### 4.3 human-in-the-loop — 처음 겪는 상황 vs 선례가 있는 상황
 
 ```mermaid
 sequenceDiagram
@@ -349,7 +402,7 @@ sequenceDiagram
 
 | 파일 | 관리 주체 | 내용 |
 |---|---|---|
-| `~/.voc-hub/operator-decisions.jsonl` | 운영자 | `{ts, voc_number, decision, trigger_condition, human_instruction, precedent_used}` — 판단·위임 이력, human-in-the-loop 선례 검색의 근거 |
+| `~/.voc-hub/operator-decisions.jsonl` | 운영자 | `{ts, voc_number, decision, trigger_condition, human_instruction, precedent_used, evidence}` — 판단·위임 이력. `precedent_used`는 human-in-the-loop 선례 검색(4.3)과 선례 재활용(4.2) 모두의 근거이고, `evidence`(자동 해결자가 인용한 저장소 파일)는 4.2의 재확인 대상을 정하는 근거다 |
 | `~/.voc-hub/handoff/<voc_number>.md` | 넘기는 쪽 Role(자동 해결자/운영자) | 다음 Role에게 그대로 전달해야 하는 본문(답변 초안, 최종 회신/내부 메일 본문 등)의 원문. 5.1 참고 |
 | VoC Hub API 자체 (`status`, `internal_memo` 등) | 모니터 | VoC의 시스템 정식 기록 — 별도 로그를 두지 않고 API 레코드를 그대로 신뢰한다 |
 | GitHub PR/커밋 이력 | 자동 해결자 | 코드 수정의 감사 기록은 저장소 자체가 시스템 of record |

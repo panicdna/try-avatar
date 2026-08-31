@@ -29,6 +29,7 @@ EDITABLE_FIELDS = (
     "trigger_condition",
     "human_instruction",
     "precedent_used",
+    "evidence",
 )
 
 
@@ -221,7 +222,7 @@ DASHBOARD_HTML = """<!doctype html>
   <thead>
     <tr>
       <th>ts</th><th>voc_number</th><th>decision</th><th>trigger_condition</th>
-      <th>human_instruction</th><th>precedent_used</th><th></th>
+      <th>human_instruction</th><th>precedent_used</th><th>evidence</th><th></th>
     </tr>
   </thead>
   <tbody id="entries-body"></tbody>
@@ -243,7 +244,7 @@ DASHBOARD_HTML = """<!doctype html>
 </table>
 
 <script>
-const EDITABLE_FIELDS = ["voc_number", "decision", "trigger_condition", "human_instruction", "precedent_used"];
+const EDITABLE_FIELDS = ["voc_number", "decision", "trigger_condition", "human_instruction", "precedent_used", "evidence"];
 let allItems = [];
 
 async function loadEntries() {
