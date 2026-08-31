@@ -343,8 +343,8 @@ sequenceDiagram
     participant M as 모니터 (@voc-avatar-monitor)
     participant R as 자동 해결자 (@voc-avatar-resolver)
 
-    O->>M: 과거 해결된(status=resolved) VoC 목록 요청
-    M-->>O: voc_number·message·reply_body 그대로 전달
+    O->>M: 과거 해결·종료된(status=resolved/closed) VoC 목록 요청 (issue_owner_email로 좁힐 수 있으면 함께 전달)
+    M-->>O: voc_number·status·message·reply_body 그대로 전달
     O->>O: 표면적으로 유사한 후보 탐색 (여기까지는 운영자 재량)
     O->>R: 신규 VoC + 유사 선례(질문·답변·evidence) 위임 — "지금도 유효한가?"
     alt 재확인됨 (근거 파일 변경 없음, 사안도 동일)
@@ -369,6 +369,18 @@ sequenceDiagram
 저장소 파일)가 있는 판단만 재확인 대상이 됩니다 — 근거 없이 확정된
 판단은 애초에 존재할 수 없고(3.3 참고), 근거가 없으면 재확인할 것도
 없으니 자동으로 전면 조사로 넘어갑니다.
+
+**선례 조회의 범위**: 이 조회는 VoC Hub API 키에 걸린 서비스 범위
+(`service_name`)를 그대로 따릅니다(2026-08-31 확인) — 이 봇이 다루는
+서비스 밖의 VoC는 안 보이는데, 이건 Agent Factory의 "목록은 소유자
+제한, 상세는 무관"이라는 비대칭과 달리 목록·상세 모두 같은 방식으로
+막혀 있어 우회할 방법이 없습니다. 다만 다른 서비스의 VoC는 애초에 이
+봇의 선례로도 부적절해서, 이건 우회가 필요한 결함이 아니라 의도된
+경계로 봅니다. 또한 VoC Hub API 자체엔 질문 내용에 대한 검색·유사도
+인터페이스가 없습니다 — `issue_owner_email`(정확히 일치)만 서버 측에서
+후보를 좁힐 수 있는 유일한 필터이고, 그 외의 "표면적으로 비슷한가"
+판단은 전량 조회 후 운영자가 직접 훑어보는 것으로 처리합니다
+(`agents/voc-avatar-monitor.md` §1-1 참고).
 
 ### 4.3 human-in-the-loop — 처음 겪는 상황 vs 선례가 있는 상황
 
