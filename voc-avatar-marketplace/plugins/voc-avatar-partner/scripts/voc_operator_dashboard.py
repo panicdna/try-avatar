@@ -229,7 +229,7 @@ DASHBOARD_HTML = """<!doctype html>
 
 <datalist id="decision-options">
   <option value="reply"><option value="internal">
-  <option value="pr_delegate"><option value="hold">
+  <option value="resolver_delegate"><option value="hold">
 </datalist>
 
 <h2>핸드오프 파일 현황</h2>
