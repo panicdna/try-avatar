@@ -192,21 +192,35 @@ sequenceDiagram
 > 2026-08-28: 소유 계정을 admin 테스트 계정에서 **한동구(panicdna@gmail.com)**
 > 계정으로 옮겼습니다(Agent Factory API에 소유권 이전 자체가 없어 동일 내용을
 > 새로 생성하고 이전 항목은 삭제하는 방식으로 처리 — 그래서 ID가 전부
-> 바뀌었습니다). 아래는 현재(한동구 소유) 기준입니다.
+> 바뀌었습니다).
+>
+> 2026-08-31: fake 서버가 재시작(또는 재시딩)되며 이전 Card/Role이 전부
+> `..._not_found`로 사라져 있었습니다 — 예상대로 ID가 불안정했습니다(skill_id뿐
+> 아니라 Card/Role ID도 재시작에 안정적이지 않다는 게 이번에 새로 확인된
+> 사실입니다). `voc-avatar-export/reimport.sh`로 재생성했고, 이 김에
+> `voc-avatar-marketplace`의 현재 절차(1차 라우팅/2차 확정 분리, 운영자의
+> 자기 지식 답변 금지, 담당자 확인 경로 제거, 리졸버의 "검색 먼저" 요구 등,
+> 2026-08-30~31 변경분)를 반영해 Card `responsibility`·각 Role `description`·
+> Task `text`도 함께 갱신했습니다. 아래는 그 결과 기준입니다.
 
 | 구분 | 이름 | ID | 로컬 subagent (`@`로 호출) |
 |---|---|---|---|
-| Card | VoC 자동 해결 파트너 | `0eb88455-b997-46d9-9a65-b25423bd14e3` | — |
-| Role | 운영자 | `a8035c60-1d84-4871-a8af-5ced1c4f2acd` | `@voc-avatar-operator` |
-| Role | VoC Hub 모니터 | `1ba34c00-add5-4c91-bd5c-bfb098973682` | `@voc-avatar-monitor` |
-| Role | 자동 해결자 | `cae63e20-4b84-4052-afee-efb208c12aef` | `@voc-avatar-resolver` |
-| Skill (모니터에만 연결) | voc-hub-skills / voc-hub-responder | `7c5abcec-8690-4476-b554-69a88286eb25` | — |
+| Card | VoC 자동 해결 파트너 | `4e1f7d61-9cdc-410c-b827-f0fd623a2c5a` | — |
+| Role | 운영자 | `d66358a2-3d92-4ffa-a081-87e9ae879691` | `@voc-avatar-operator` |
+| Role | VoC Hub 모니터 | `b70dcabf-51a7-488b-a6f4-393c1dfe988d` | `@voc-avatar-monitor` |
+| Role | 자동 해결자 | `b37b4a47-a66a-4234-9fb2-49d88f456806` | `@voc-avatar-resolver` |
+| Skill (모니터에만 연결) | voc-hub-skills / voc-hub-responder | `6c702480-9655-4f3e-b828-756e71b5b7f6` | — |
 
 로컬 subagent 파일 위치: `~/.claude/agents/agent-factory/voc-avatar-{operator,monitor,resolver}.md`
 
-> skill_id는 fake 서버 재시작에 안정적이지 않은 것으로 확인된 바 있습니다
-> (`archive/voc-autoresolve-avatar-registration.md` 참고). 재사용 전
-> `GET /skills/{id}`로 살아있는지 먼저 확인하세요.
+> Skill은 이번엔 admin 테스트 계정(`admin@test.com`) 소유로 재조회됐습니다 —
+> Task가 이 skill_id를 참조하는 데는 소유자가 달라도 문제없이 동작했지만,
+> 필요하면 별도로 우리 계정 소유로 재등록할 수 있습니다.
+>
+> Card/Role/skill_id 전부 fake 서버 재시작에 안정적이지 않은 것으로 확인된
+> 바 있습니다(`archive/voc-autoresolve-avatar-registration.md` 참고). 재사용
+> 전 `GET /avatars/cards/{id}`·`GET /avatars/roles/{id}`·`GET /skills/{id}`로
+> 살아있는지 먼저 확인하세요.
 
 **아바타 카드 생성 결과** (한동구 계정, 웹 UI):
 
