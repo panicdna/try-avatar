@@ -503,7 +503,7 @@ class HttpServerTests(unittest.TestCase):
         self.assertIn('id="decision-options"', html)
         self.assertIn('value="reply"', html)
         self.assertIn('value="internal"', html)
-        self.assertIn('value="pr_delegate"', html)
+        self.assertIn('value="resolver_delegate"', html)
         self.assertIn('value="hold"', html)
         # Confirm the JS for decision field creates input not textarea
         self.assertIn('if (field === "decision") {', html)
