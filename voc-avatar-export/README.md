@@ -35,7 +35,7 @@ bash reimport.sh
 
 - 원본 ID는 재사용되지 않음(서버가 새 ID 발급).
 - Task가 참조하는 skill_id(`voc-hub-skills`, 이 스냅샷 기준
-  `7c5abcec-8690-4476-b554-69a88286eb25`)가 대상 서버에도 있어야 함 — 스크립트가
+  `6c702480-9655-4f3e-b828-756e71b5b7f6`)가 대상 서버에도 있어야 함 — 스크립트가
   먼저 확인. **이 ID는 fake 서버 재시작에 안정적이지 않은 것으로 확인된 바 있음**
   (`skill_voc_hub_skills.json` 참고, 재사용 전 `GET /skills/{id}`로 생존 확인 권장).
 - 이 번들은 **Agent Factory 카탈로그(설계)** 를 담고 있다. 로컬 subagent 파일

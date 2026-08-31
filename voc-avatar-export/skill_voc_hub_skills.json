@@ -1,30 +1,30 @@
 {
-  "id": "7c5abcec-8690-4476-b554-69a88286eb25",
-  "short_id": "fAfjaqr7nFdX",
+  "id": "6c702480-9655-4f3e-b828-756e71b5b7f6",
+  "short_id": "JJKwnhkxeNqR",
   "name": "voc-hub-skills",
   "short_description": "",
   "category": "Productivity",
   "tags": [
-    "voc-hub"
+    "voc"
   ],
   "scan_status": "passed",
   "version_label": null,
   "owner": {
-    "user_id": "u_F2crEP_ivBLKYoIsey2LNu",
-    "email": "voc.tester2@samsung.com",
-    "display_name": "VoC 테스터2"
+    "user_id": "u_DHT3eMX90SS2zQp3Mea7tt",
+    "email": "admin@test.com",
+    "display_name": "관리자"
   },
   "title": null,
-  "description": "# voc-hub-skills\n\nVoC Hub 운영용 에이전트 스킬을 담은 Claude Code 플러그인 마켓플레이스.\n구조는 [convert-skill-to-opencode](https://github.com/panicdna/convert-skill-to-opencode)\n를 따른다.\n\n```\nskills/voc-hub-skills/\n├── .claude-plugin/\n│   └── marketplace.json\n└── plugins/\n    └── voc-hub-responder/\n        ├── .claude-plugin/\n        │   └── plugin.json\n        └── skills/\n            └── voc-hub-responder/\n                └── SKILL.md\n```\n\n## 플러그인\n\n| 이름 | 설명 |\n|---|---|\n| `voc-hub-responder` | `X-API-Key` 통합 API 로 VoC 를 조회·초안·저장·발송한다. `compose` 가 수신자를 정하므로, 발송은 사람이 **모드·수신·제목**을 보고 승인한 뒤에만 한다. |\n\n## 설치\n\n둘 중 **하나만** 쓴다. 같이 쓰면 같은 이름이 두 번 등록된다.\n\n```bash\n# A. 플러그인으로 설치\n/plugin marketplace add <repo>/skills/voc-hub-skills\n/plugin install voc-hub-responder@voc-hub-skills\n\n# B. 프로젝트 스킬로 복사 (개발 중일 때)\nmkdir -p .claude/skills/voc-hub-responder\ncp skills/voc-hub-skills/plugins/voc-hub-responder/skills/voc-hub-responder/SKILL.md \\\n   .claude/skills/voc-hub-responder/SKILL.md\n```\n\n**B 는 심볼릭 링크가 아니라 복사다.** WSL 에서 저장소가 `/mnt/c`(v9fs) 위에 있으면\n`.claude/skills/` 안의 심볼릭 링크가 조용히 사라진다 — 이 저장소에서 두 번 겪었다.\n링크가 끊겨도 `ls` 로는 티가 안 나고, 로더는 그냥 \"스킬 없음\" 으로 처리하므로 재시작 후\n목록에서 사라진 걸 보고서야 알게 된다.\n\n복사본이므로 **갈라질 수 있다.** 편집은 언제나 `skills/` 쪽 추적본에 하고, 그 다음 위\n`cp` 를 다시 돌린다. 시험 전에 확인한다:\n\n```bash\ndiff -q skills/voc-hub-skills/plugins/voc-hub-responder/skills/voc-hub-responder/SKILL.md \\\n        .claude/skills/voc-hub-responder/SKILL.md && echo 동일\n```\n\n스킬은 등록과 본문이 **세션 시작 시 함께 스냅샷**된다. 파일을 고쳐도 재시작 전까지는\n옛 내용이 로드되므로, 반드시 `수정 → 복사 → 재시작 → 시험` 순서로 돈다.\n\n## 이 스킬이 다루는 표면\n\n`/api/integrations/v1/vocs` (`X-API-Key`). 레코드 키는 `voc_number`, 상태 필드는\n`status`, 발송은 `POST /{voc_number}/reply` 에 `Idempotency-Key` 필수다.\n쿠키 세션 표면(`/web/*`)과는 필드 이름부터 다르므로 섞지 않는다. 근거·검증 기록·오류\n사전은 저장소의 `docs/voc-web-triage-runbook.md` 에 있다.\n\n`skills/responding-to-voc` 는 같은 API 를 다루는 **다른** 스킬이다 — 무인·외부 호출용\n정책 스킬로, 응답 비노출과 임시파일 파기를 강제한다. 이 플러그인과 목적이 다르다.\n\n## OpenCode 로 변환할 때\n\n변환 규칙 기준으로 이 스킬은 이미 통과 상태다 — `name` 이 정규식\n`^[a-z0-9]+(-[a-z0-9]+)*$` 에 맞고, `description` 이 447자(1–1024)이며,\n`allowed-tools` 가 없어 `opencode.json` 권한 패치가 필요 없고, 평탄화할 `metadata` 도\n없다. 유일한 차이는 `compatibility` 키가 없다는 점으로, 변환 시 `opencode` 로 채우면 된다.\n",
+  "description": "# voc-hub-skills\n\nVoC Hub 운영용 에이전트 스킬을 담은 Claude Code 플러그인 마켓플레이스.\n구조는 [convert-skill-to-opencode](https://github.com/panicdna/convert-skill-to-opencode)\n를 따른다.\n\n```\nskills/voc-hub-skills/\n├── .claude-plugin/\n│   └── marketplace.json\n└── plugins/\n    └── voc-hub-responder/\n        ├── .claude-plugin/\n        │   └── plugin.json\n        └── skills/\n            └── voc-hub-responder/\n                └── SKILL.md\n```\n\n## 플러그인\n\n| 이름 | 설명 |\n|---|---|\n| `voc-hub-responder` | `X-API-Key` 통합 API 로 VoC 를 조회·초안·저장·발송한다. `compose` 가 수신자를 정하므로, 발송은 사람이 **모드·수신·제목**을 보고 승인한 뒤에만 한다. |\n\n## 설치\n\n둘 중 **하나만** 쓴다. 같이 쓰면 같은 이름이 두 번 등록된다.\n\n```bash\n# A. 플러그인으로 설치\n/plugin marketplace add <repo>/skills/voc-hub-skills\n/plugin install voc-hub-responder@voc-hub-skills\n\n# B. 프로젝트 스킬로 복사 (개발 중일 때)\nmkdir -p .claude/skills/voc-hub-responder\ncp skills/voc-hub-skills/plugins/voc-hub-responder/skills/voc-hub-responder/SKILL.md \\\n   .claude/skills/voc-hub-responder/SKILL.md\n```\n\n**B 는 심볼릭 링크가 아니라 복사다.** WSL 에서 저장소가 `/mnt/c`(v9fs) 위에 있으면\n`../../.claude/skills` 안의 심볼릭 링크가 조용히 사라진다 — 이 저장소에서 두 번 겪었다.\n링크가 끊겨도 `ls` 로는 티가 안 나고, 로더는 그냥 \"스킬 없음\" 으로 처리하므로 재시작 후\n목록에서 사라진 걸 보고서야 알게 된다.\n\n복사본이므로 **갈라질 수 있다.** 편집은 언제나 `../../skills` 쪽 추적본에 하고, 그 다음 위\n`cp` 를 다시 돌린다. 시험 전에 확인한다:\n\n```bash\ndiff -q skills/voc-hub-skills/plugins/voc-hub-responder/skills/voc-hub-responder/SKILL.md \\\n        .claude/skills/voc-hub-responder/SKILL.md && echo 동일\n```\n\n스킬은 등록과 본문이 **세션 시작 시 함께 스냅샷**된다. 파일을 고쳐도 재시작 전까지는\n옛 내용이 로드되므로, 반드시 `수정 → 복사 → 재시작 → 시험` 순서로 돈다.\n\n## 이 스킬이 다루는 표면\n\n`/api/integrations/v1/vocs` (`X-API-Key`). 레코드 키는 `voc_number`, 상태 필드는\n`status`, 발송은 `POST /{voc_number}/reply` 에 `Idempotency-Key` 필수다.\n쿠키 세션 표면(`/web/*`)과는 필드 이름부터 다르므로 섞지 않는다. 근거·검증 기록·오류\n사전은 저장소의 `docs/voc-web-triage-runbook.md` 에 있다.\n\n`skills/responding-to-voc` 는 같은 API 를 다루는 **다른** 스킬이다 — 무인·외부 호출용\n정책 스킬로, 응답 비노출과 임시파일 파기를 강제한다. 이 플러그인과 목적이 다르다.\n\n## OpenCode 로 변환할 때\n\n변환 규칙 기준으로 이 스킬은 이미 통과 상태다 — `name` 이 정규식\n`^[a-z0-9]+(-[a-z0-9]+)*$` 에 맞고, `description` 이 447자(1–1024)이며,\n`allowed-tools` 가 없어 `opencode.json` 권한 패치가 필요 없고, 평탄화할 `metadata` 도\n없다. 유일한 차이는 `compatibility` 키가 없다는 점으로, 변환 시 `opencode` 로 채우면 된다.\n",
   "license": "",
   "components": [
     {
       "key": "voc-hub-responder",
       "name": "voc-hub-responder",
-      "short_description": "Use when triaging VoC Hub records through the X-API-Key integration API on any instance, local or deployed — whether a person is running it interactively or it runs unattended — and needs open VoCs li",
+      "short_description": "Use when a person is triaging VoC Hub records through the X-API-Key integration API on any instance, local or deployed, and needs open VoCs listed, a draft saved, a status moved, or a customer or inte",
       "discoverable": true
     }
   ],
   "scenarios": [],
-  "archive_url": "/api/v1/agent/skills/7c5abcec-8690-4476-b554-69a88286eb25/archive"
+  "archive_url": "/api/v1/agent/skills/6c702480-9655-4f3e-b828-756e71b5b7f6/archive"
 }
