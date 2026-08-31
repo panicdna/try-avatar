@@ -100,6 +100,18 @@ class ApplyPatchDeleteTests(unittest.TestCase):
             items = dash.apply_patch(path, entry, {"ts": "hacked", "decision": "reply"})
             self.assertEqual(items[0]["ts"], "t1")
 
+    def test_patch_can_set_evidence_field(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            entry = {"ts": "t1", "voc_number": "V1", "decision": "resolver_delegate",
+                      "trigger_condition": "", "human_instruction": "",
+                      "precedent_used": "", "evidence": ""}
+            path = self._make_file(tmp, [entry])
+            items = dash.apply_patch(
+                path, entry,
+                {"decision": "reply", "evidence": "apps/server/src/api/items/router.py"},
+            )
+            self.assertEqual(items[0]["evidence"], "apps/server/src/api/items/router.py")
+
     def test_delete_removes_matching_line_and_creates_backup(self):
         with tempfile.TemporaryDirectory() as tmp:
             entry1 = {"ts": "t1", "voc_number": "V1", "decision": "hold",
@@ -490,6 +502,12 @@ class HttpServerTests(unittest.TestCase):
         self.assertIn("/api/entries", html)
         self.assertIn("새로고침 후 다시 시도", html)
         self.assertIn("향후 자동 판단의 선례로 쓰일 수 있습니다", html)
+
+    def test_evidence_column_present_in_table_and_editable_fields(self):
+        with urllib.request.urlopen(self._url("/")) as resp:
+            html = resp.read().decode("utf-8")
+        self.assertIn("<th>evidence</th>", html)
+        self.assertIn('"evidence"', html)  # EDITABLE_FIELDS JS array
 
     def test_decision_field_uses_input_with_datalist_not_textarea(self):
         """Verify the decision field's edit control uses <input type="text"> with list attr.
