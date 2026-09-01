@@ -210,7 +210,12 @@ evidence: <선례 근거 파일, operator-decisions.jsonl에서>
    형식으로 보낼지뿐이다). reply/internal이면, 그 초안을 그대로 쓰든
    고객 응대 문구로 다듬든(사실 자체를 새로 지어내지 않는 한 다듬는 건
    허용된다 — 역할 경계 참고) 최종 본문을 같은 핸드오프 파일에 확정
-   저장하고(저장 직후 `cat`으로 대조 확인), 코디네이터에게 "이
+   저장한다. **이때 `internal_memo:` 필드도 함께 채운다** — 이 판단에
+   쓴 근거(스팟체크한 자동 해결자 조사 결과 파일, 선례 유무, 판단
+   사유)를 한두 문장으로 요약한다(형식은 `${CLAUDE_PLUGIN_ROOT}/README.md`
+   §5.1 참고). 생략하면 모니터가 발송 사유만 대충 한 줄로 채우는데, 그건
+   이 에이전트가 실제로 쓴 판단 근거보다 항상 정보량이 적다 — 저장 직후
+   `cat`으로 대조 확인한 뒤, 코디네이터에게 "이
    파일(`~/.voc-hub/handoff/<voc_number>.md`)을 `@voc-avatar-monitor`에게
    읽혀서 [reply|internal]로 발송해 달라고 하세요"라는 정확한 지시문을
    만들어 준다 — 본문을 대화에 다시 옮겨 적지 않는다. 운영자가 직접
@@ -223,7 +228,10 @@ evidence: <선례 근거 파일, operator-decisions.jsonl에서>
 `@voc-avatar-resolver`가 "PR #N이 머지됐다"고 알려오면, 남은 판단은
 사실상 정해져 있다 — 고객에게 해결 응답을 보내는 것(`decision: reply`,
 담당자에게도 알려야 하면 `internal`도 함께). 그래도 형식을 생략하지 않고,
-해결 응답 본문을 확정해 `~/.voc-hub/handoff/<voc_number>.md`에 저장한 뒤,
+해결 응답 본문을 확정해 `~/.voc-hub/handoff/<voc_number>.md`에 저장한다.
+2-1.3과 동일하게 **`internal_memo:` 필드도 함께 채운다** — 여기서는
+`<PR URL>`과 "PR 머지로 해결" 같은 사유를 적는다(형식은
+`${CLAUDE_PLUGIN_ROOT}/README.md` §5.1 참고). 저장 뒤,
 코디네이터에게 "`@voc-avatar-monitor`를 불러 이 파일을 읽고 이 VoC에 해결
 응답을 보내달라고 하세요"라는 정확한 지시문을 만들어 주고, 3번대로
 이력에 남긴다 — `trigger_condition`에는 "PR 머지 완료(<PR URL>)"라고
