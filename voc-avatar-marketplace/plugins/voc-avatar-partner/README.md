@@ -455,11 +455,21 @@ Role의 결과를 읽고, 다음 Role을 호출할 때 그 내용을 옮겨 전�
   mkdir -p ~/.voc-hub/handoff
   cat > ~/.voc-hub/handoff/<voc_number>.md <<'HANDOFF_EOF'
   compose: reply
+  internal_memo: <선택 — 있으면 그대로 payload의 internal_memo로 전달됨>
   --- 본문 시작 ---
   <실제 본문 원문>
   --- 본문 끝 ---
   HANDOFF_EOF
   ```
+
+  `internal_memo:` 줄은 **운영자 → 모니터** 방향(§2-1.3/§2-2, 최종 회신·내부
+  메일 본문 확정 시)에서만 의미가 있는 선택 필드입니다 — 판단 근거·조사
+  결과 요약처럼, 운영자가 가진 맥락 중 고객에게는 안 나가지만 담당자·VoC
+  레코드에는 남겨둘 만한 내용을 적습니다. 생략하면 모니터가 발송 사유를
+  한 줄로 요약해 대신 채웁니다(`voc-avatar-monitor.md` §2 참고) — 그
+  fallback보다 운영자가 직접 채운 내용이 항상 우선합니다. 자동 해결자 →
+  운영자 방향(초도 분석·답변 초안 전달)에서는 이 줄을 안 씁니다 — 그
+  단계에서는 아직 reply/internal 여부 자체가 정해지지 않았습니다.
 
   저장 직후 `cat`으로 다시 읽어 의도한 내용과 바이트 단위로 같은지 확인한
   뒤에야 코디네이터가 다음 Role을 호출합니다.
