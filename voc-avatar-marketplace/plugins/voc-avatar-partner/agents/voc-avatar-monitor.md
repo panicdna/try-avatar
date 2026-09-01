@@ -88,6 +88,25 @@ voc-hub-responder의 compose 규칙대로 실행한다:
 - `reply` — `customer_email`로, `[답변]+[질문 원문]` 인용 포함
 - `internal` — `issue_owner_email`에서 고객 제거·중복 제거한 수신자로
 
+`internal_memo`는 두 compose 모두에서 `reply_body`와 함께 구성해 payload에
+싣는다 — voc-hub-responder "발송 3종"의 ②reply·③internal 예시가 둘 다
+`internal_memo`를 포함한다(`SKILL.md` §"발송 3종"). 이 필드를 안 채우고
+`POST .../reply`만 부르면, 메일 발송이 성공해도 레코드에 담당자 메모가
+안 남는다 — 운영자 지시에 메모로 쓸 내용이 함께 오면 그대로, 안 왔으면
+발송 사유를 한 줄로 요약해 채운다.
+
+(2026-09-01 갱신) 예전엔 `internal` 발송이 실패하면 이 `internal_memo`가
+레코드에 아예 안 남는 문제가 있어서, 여기서 `POST` 앞에 `PATCH` 선반영을
+필수로 요구했었다. 그 문제는 voc-hub `app/voc_processing.py`의
+`send_voc_reply()` 자체가 서버 쪽에서 고쳐지며 해소됐다
+(`dev-team-404/voc-hub` PR #73 "persist VoC record even when reply/
+internal mail delivery fails", main 병합·fake 스택 반영 확인됨) — 이제
+`POST .../reply`가 메일 발송에 실패해도, 요청에 실려 보낸 `internal_memo`
+(`UNSET`이 아니면)는 항상 레코드에 반영된다. 그러니 `PATCH` 선반영은
+더 이상 이 목적으로는 필요 없다 — **payload에 `internal_memo`를
+빠뜨리지 않는 것만 지키면 된다.** (아래 "본문 대조" 문단의 PATCH는
+일관성 점검이라는 별개 목적으로 여전히 선택 사항이다.)
+
 운영자의 지시가 확정됐다는 것 자체가 발송 실행 지시다 — **발송 전
 사람에게 별도 승인을 구하지 않고 바로 `POST .../reply`를 호출한다**
 (2026-08-31, 역할 경계 참고). `Idempotency-Key`는 매 시도 새로 만든다.
@@ -132,11 +151,26 @@ voc-hub-responder의 compose 규칙대로 실행한다:
 운영자든 자동 해결자든)에게 오류 코드·메시지·`retry_action`을 그대로
 보고한다.
 
+`internal` 발송에서 `POST .../reply`가 (예: Resend 샌드박스 발신 제약
+같은 이유로) 메일 발송 단계에서 실패해도, payload에 `internal_memo`를
+채워 보냈다면 서버가 그 값을 레코드에 반영한다(위 2절, voc-hub PR #73
+이후). 이 사실을 실패 보고에 **포함한다**("메일 발송은 실패했지만
+internal_memo는 저장됨") — 코디네이터·운영자가 "완전히 실패해서 아무
+흔적도 없다"로 오해하지 않도록 하기 위해서다. 다만 이건 어디까지나
+payload에 `internal_memo`를 채워 보냈을 때만 성립한다 — 서버 수정은
+"보낸 값을 실패해도 지킨다"는 것이지 "안 보낸 값을 채워준다"는 게
+아니다. 2026-09-01 실제 발생했던 사고는 서버가 실패 시 아무것도 안
+남기던 문제와, 이 에이전트가 애초에 `internal_memo`를 payload에 안
+채우던 문제가 겹친 것이었다 — 서버 쪽은 고쳐졌지만, `internal_memo`를
+채우는 건 여전히 이 에이전트의 책임이다.
+
 ## 최종 보고
 
 매 호출마다: 어떤 요청(목록 조회 / 과거 해결 사례 조회 / 발송 / PR 후속
 발송)을 받았는지, 사용한
 인스턴스, 결과(성공 시 voc_number·수신자·상태 변화, 실패 시 오류 코드),
-`warnings` 배열 전체. **발송을 실행했다면 실제로 보낸 본문 전문을
-요약 없이 최종 보고에 포함한다** — 발송 전 사람 확인이 없어진 만큼,
-무엇이 나갔는지 확인할 수 있는 시점은 이 최종 보고뿐이다.
+`warnings` 배열 전체. **발송을 실행했다면 실제로 보낸 본문 전문과
+`internal_memo`를 요약 없이 최종 보고에 포함한다** — 발송 전 사람
+확인이 없어진 만큼, 무엇이 나갔는지(그리고 `internal`이 실패했다면
+`internal_memo`가 payload에 실려 서버에 반영은 됐는지, §4 참고) 확인할
+수 있는 시점은 이 최종 보고뿐이다.
