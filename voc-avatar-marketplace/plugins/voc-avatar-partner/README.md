@@ -511,6 +511,15 @@ Role의 결과를 읽고, 다음 Role을 호출할 때 그 내용을 옮겨 전�
 > 기능을 여러 개 모아 한 번에 갱신하기로 했으니(레포 CLAUDE.md 참고
 > 대상은 아니고, 세션 메모리에 기록), 다음 갱신도 이 방식(먼저 ID 생존
 > 확인 → 살아있으면 PATCH, 없어졌으면 `reimport.sh`로 재생성)을 따릅니다.
+>
+> 2026-09-01: 운영자→모니터 핸드오프에 `internal_memo` 필드가 추가된
+> 변경분(`7e4343a`, `78b26b2` — 발송 payload에 `internal_memo` 필수화,
+> 운영자가 판단 근거를 `internal_memo`에 남기도록 확장)을 반영해 다시
+> 갱신했습니다. 이번에도 서버가 재시작되지 않아 ID가 살아있었으므로
+> PATCH만 사용했습니다 — Task `operator_decision`/`monitor_watch`의
+> `text`, Role `운영자`/`VoC Hub 모니터`의 `description`만 바뀌었고
+> (Card `responsibility`, 자동 해결자 Role/Task는 이번 변경과 무관해
+> 그대로 둠), ID는 아래와 동일합니다.
 
 | 구분 | 이름 | ID | 로컬 subagent (`@`로 호출) |
 |---|---|---|---|
