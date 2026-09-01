@@ -1,5 +1,6 @@
 import json
 import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -55,6 +56,71 @@ class ParseJsonlTests(unittest.TestCase):
             items, errors = dash.parse_jsonl(path)
             self.assertEqual(items, [])
             self.assertEqual(errors, [])
+
+
+class VocHubDirResolutionTests(unittest.TestCase):
+    """프로젝트 경로 기준 ~/.voc-hub-<slug>/ 결정론적 계산 — 설치마다 분리."""
+
+    def test_same_path_always_produces_same_slug(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "projectA"
+            root.mkdir()
+            self.assertEqual(dash.compute_voc_hub_slug(root), dash.compute_voc_hub_slug(root))
+
+    def test_different_paths_produce_different_slugs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root_a = Path(tmp) / "projectA"
+            root_b = Path(tmp) / "projectB"
+            root_a.mkdir()
+            root_b.mkdir()
+            self.assertNotEqual(dash.compute_voc_hub_slug(root_a), dash.compute_voc_hub_slug(root_b))
+
+    def test_slug_embeds_basename_and_six_hex_digest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "skill_on_boarding"
+            root.mkdir()
+            slug = dash.compute_voc_hub_slug(root)
+            self.assertRegex(slug, r"^skill_on_boarding-[0-9a-f]{6}$")
+
+    def test_sanitizes_unsafe_characters_in_basename(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "my project (v2)"
+            root.mkdir()
+            slug = dash.compute_voc_hub_slug(root)
+            self.assertRegex(slug, r"^my-project--v2--[0-9a-f]{6}$")
+
+    def test_voc_hub_dir_for_is_under_home_with_slug(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "projectA"
+            root.mkdir()
+            expected = Path.home() / f".voc-hub-{dash.compute_voc_hub_slug(root)}"
+            self.assertEqual(dash.voc_hub_dir_for(root), expected)
+
+    def test_find_project_root_returns_git_toplevel_from_subdir(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+            subdir = repo / "sub" / "dir"
+            subdir.mkdir(parents=True)
+            self.assertEqual(dash.find_project_root(subdir), repo.resolve())
+
+    def test_find_project_root_falls_back_to_start_when_not_a_git_repo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plain = Path(tmp) / "plain"
+            plain.mkdir()
+            self.assertEqual(dash.find_project_root(plain), plain.resolve())
+
+    def test_resolve_voc_hub_dir_differs_for_two_projects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo_a = Path(tmp) / "repoA"
+            repo_b = Path(tmp) / "repoB"
+            repo_a.mkdir()
+            repo_b.mkdir()
+            self.assertNotEqual(
+                dash.resolve_voc_hub_dir(repo_a),
+                dash.resolve_voc_hub_dir(repo_b),
+            )
 
 
 class ApplyPatchDeleteTests(unittest.TestCase):
@@ -548,6 +614,17 @@ class BuildServerPortConflictTests(unittest.TestCase):
 
 
 class MainEntrypointTests(unittest.TestCase):
+    def test_print_dir_flag_prints_resolved_dir_and_does_not_start_server(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            import io
+            import contextlib
+
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                exit_code = dash.main(["--print-dir"], start_dir=Path(tmp))
+            self.assertEqual(exit_code, 0)
+            self.assertEqual(out.getvalue().strip(), str(dash.resolve_voc_hub_dir(Path(tmp))))
+
     def test_main_reports_already_running_when_port_busy(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "operator-decisions.jsonl"

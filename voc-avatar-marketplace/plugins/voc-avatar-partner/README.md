@@ -424,10 +424,19 @@ sequenceDiagram
 
 ## 5. 데이터 저장소
 
+세 Role 모두 이 절의 경로를 `~/.voc-hub/`가 아니라 `$VOC_HUB_DIR`로
+표기한다 — 실제 값은 이 플러그인을 쓰는 프로젝트 경로로부터 매번
+결정론적으로 계산되는 `~/.voc-hub-<slug>/`다(`scripts/voc_operator_dashboard.py`의
+`compute_voc_hub_slug` 참고, `python3 scripts/voc_operator_dashboard.py
+--print-dir`로 직접 확인 가능). 그래서 같은 마켓플레이스를 여러
+프로젝트에 설치해도 프로젝트별로 이력이 분리된다 — 각 서브에이전트
+프롬프트가 매 호출마다 이 값을 다시 계산해서 쓴다(Bash 도구는 호출마다
+새 셸이라 환경변수가 이어지지 않기 때문).
+
 | 파일 | 관리 주체 | 내용 |
 |---|---|---|
-| `~/.voc-hub/operator-decisions.jsonl` | 운영자 | `{ts, voc_number, decision, trigger_condition, human_instruction, precedent_used, evidence}` — 판단·위임 이력. `precedent_used`는 human-in-the-loop 선례 검색(4.3)과 선례 재활용(4.2) 모두의 근거이고, `evidence`(자동 해결자가 인용한 저장소 파일)는 4.2의 재확인 대상을 정하는 근거다 |
-| `~/.voc-hub/handoff/<voc_number>.md` | 넘기는 쪽 Role(자동 해결자/운영자) | 다음 Role에게 그대로 전달해야 하는 본문(답변 초안, 최종 회신/내부 메일 본문 등)의 원문. 5.1 참고 |
+| `$VOC_HUB_DIR/operator-decisions.jsonl` | 운영자 | `{ts, voc_number, decision, trigger_condition, human_instruction, precedent_used, evidence}` — 판단·위임 이력. `precedent_used`는 human-in-the-loop 선례 검색(4.3)과 선례 재활용(4.2) 모두의 근거이고, `evidence`(자동 해결자가 인용한 저장소 파일)는 4.2의 재확인 대상을 정하는 근거다 |
+| `$VOC_HUB_DIR/handoff/<voc_number>.md` | 넘기는 쪽 Role(자동 해결자/운영자) | 다음 Role에게 그대로 전달해야 하는 본문(답변 초안, 최종 회신/내부 메일 본문 등)의 원문. 5.1 참고 |
 | VoC Hub API 자체 (`status`, `internal_memo` 등) | 모니터 | VoC의 시스템 정식 기록 — 별도 로그를 두지 않고 API 레코드를 그대로 신뢰한다 |
 | GitHub PR/커밋 이력 | 자동 해결자 | 코드 수정의 감사 기록은 저장소 자체가 시스템 of record |
 
@@ -448,12 +457,13 @@ Role의 결과를 읽고, 다음 Role을 호출할 때 그 내용을 옮겨 전�
 파일시스템을 공유하므로 가능합니다.
 
 - 넘기는 쪽(자동 해결자 → 운영자, 운영자 → 모니터)은 본문이 확정되면
-  `~/.voc-hub/handoff/<voc_number>.md`에 다음 형식으로 저장합니다(따옴표
+  `$VOC_HUB_DIR/handoff/<voc_number>.md`에 다음 형식으로 저장합니다(따옴표
   붙은 heredoc delimiter로 셸 치환을 막습니다):
 
   ```bash
-  mkdir -p ~/.voc-hub/handoff
-  cat > ~/.voc-hub/handoff/<voc_number>.md <<'HANDOFF_EOF'
+  VOC_HUB_DIR="$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/voc_operator_dashboard.py" --print-dir)"
+  mkdir -p "$VOC_HUB_DIR/handoff"
+  cat > "$VOC_HUB_DIR/handoff/<voc_number>.md" <<'HANDOFF_EOF'
   compose: reply
   internal_memo: <선택 — 있으면 그대로 payload의 internal_memo로 전달됨>
   --- 본문 시작 ---
@@ -474,11 +484,11 @@ Role의 결과를 읽고, 다음 Role을 호출할 때 그 내용을 옮겨 전�
   저장 직후 `cat`으로 다시 읽어 의도한 내용과 바이트 단위로 같은지 확인한
   뒤에야 코디네이터가 다음 Role을 호출합니다.
 - 코디네이터가 다음 Role을 호출할 때 넘기는 지시문은 본문을 다시 옮기지
-  않고 **파일 경로만** 가리킵니다(예: "`~/.voc-hub/handoff/<voc_number>.md`를
+  않고 **파일 경로만** 가리킵니다(예: "`$VOC_HUB_DIR/handoff/<voc_number>.md`를
   읽고 판단해 달라"고 `@voc-avatar-operator`를 호출). 코디네이터가 옮겨
   적어야 할 내용이 파일 경로 하나뿐이라, 그 과정에서 요약·누락될 여지가
   크게 줄어듭니다.
-- 받는 쪽은 그 대화에서 가장 먼저 `cat ~/.voc-hub/handoff/<voc_number>.md`로
+- 받는 쪽은 그 대화에서 가장 먼저 `cat "$VOC_HUB_DIR/handoff/<voc_number>.md"`로
   파일을 읽고, `--- 본문 시작 ---`/`--- 본문 끝 ---` 사이 내용을 그 판단·발송의
   유일한 본문 원본으로 취급합니다. 같은 호출에 코디네이터가 프로세로
   요약해서 붙여준 본문이 있어도, 파일 내용과 다르면 파일이 우선합니다.

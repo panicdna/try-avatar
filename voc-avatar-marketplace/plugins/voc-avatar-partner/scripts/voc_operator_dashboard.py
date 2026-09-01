@@ -1,24 +1,73 @@
 #!/usr/bin/env python3
 """VoC Operator 이력 대시보드 — 로컬 전용, 표준 라이브러리만 사용한다.
 
-~/.voc-hub/operator-decisions.jsonl 을 웹 페이지로 열람·검색·수정·삭제한다.
+~/.voc-hub-<slug>/operator-decisions.jsonl 을 웹 페이지로 열람·검색·수정·삭제한다.
+<slug>는 실행 시점의 프로젝트 경로(git 레포 루트)로부터 결정론적으로 계산되어,
+설치(프로젝트)마다 별도 디렉터리를 쓴다 — compute_voc_hub_slug 참고.
 이 파일은 voc-avatar-operator 에이전트가 human-in-the-loop 선례 재사용에
 직접 읽는 실제 소스이므로, 수정/삭제는 항상 백업 후에만 실행한다.
 """
 from __future__ import annotations
 
+import hashlib
 import html
 import json
 import re
 import shutil
+import subprocess
 import time
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
-DEFAULT_JSONL_PATH = Path.home() / ".voc-hub" / "operator-decisions.jsonl"
-DEFAULT_HANDOFF_DIR = Path.home() / ".voc-hub" / "handoff"
+
+def _sanitize_slug_component(name: str) -> str:
+    """파일시스템에 안전한 문자(영숫자·_·-)만 남기고 나머지는 '-'로 치환한다."""
+    return re.sub(r"[^A-Za-z0-9_-]", "-", name) or "root"
+
+
+def compute_voc_hub_slug(root: Path) -> str:
+    """프로젝트 절대경로로부터 결정론적 slug를 계산한다.
+
+    같은 경로는 항상 같은 slug를 낳는다 — 순번 할당이나 마커 파일 없이도
+    설치(프로젝트)마다 ~/.voc-hub-<slug>/ 가 자동으로 갈린다. 반대로 경로가
+    바뀌면(레포 이동, 워크트리 등) slug도 바뀐다 — 이전 데이터는 따라오지
+    않는다(voc-avatar-partner README §6와 같은 종류의 트레이드오프).
+    """
+    resolved = Path(root).resolve()
+    name = _sanitize_slug_component(resolved.name or "root")
+    digest = hashlib.sha1(str(resolved).encode("utf-8")).hexdigest()[:6]
+    return f"{name}-{digest}"
+
+
+def voc_hub_dir_for(root: Path) -> Path:
+    """root 프로젝트가 쓸 ~/.voc-hub-<slug>/ 경로를 계산한다 (생성은 하지 않는다)."""
+    return Path.home() / f".voc-hub-{compute_voc_hub_slug(root)}"
+
+
+def find_project_root(start: Path) -> Path:
+    """git 레포 루트를 찾는다. git 레포가 아니거나 git이 없으면 start를 그대로 반환한다."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return Path(start).resolve()
+    if result.returncode != 0:
+        return Path(start).resolve()
+    return Path(result.stdout.strip()).resolve()
+
+
+def resolve_voc_hub_dir(start: Path | None = None) -> Path:
+    """start(기본: 현재 작업 디렉터리) 기준으로 이 설치가 쓸 ~/.voc-hub-<slug>/ 를 계산한다."""
+    start = Path(start) if start is not None else Path.cwd()
+    return voc_hub_dir_for(find_project_root(start))
+
+
+DEFAULT_JSONL_PATH = resolve_voc_hub_dir() / "operator-decisions.jsonl"
+DEFAULT_HANDOFF_DIR = resolve_voc_hub_dir() / "handoff"
 DEFAULT_PORT = 8765
 BODY_START_MARKER = "--- 본문 시작 ---"
 BODY_END_MARKER = "--- 본문 끝 ---"
@@ -60,7 +109,7 @@ def parse_jsonl(path: Path) -> tuple[list[dict], list[dict]]:
 
 
 def parse_handoff_file(path: Path) -> dict:
-    """핸드오프 파일(~/.voc-hub/handoff/<voc_number>.md) 하나를 요약 정보로 만든다.
+    """핸드오프 파일(~/.voc-hub-<slug>/handoff/<voc_number>.md) 하나를 요약 정보로 만든다.
 
     형식은 README.md §5.1 참고: `compose: <reply|internal>` 한 줄 + 구분자
     (BODY_START_MARKER/BODY_END_MARKER)로 감싼 본문. compose 줄이나 구분자가
@@ -595,7 +644,7 @@ def build_server(
     return ThreadingHTTPServer(("127.0.0.1", port), handler_cls)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, start_dir: Path | None = None) -> int:
     import argparse
     import sys
 
@@ -605,7 +654,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--handoff-dir", type=Path, default=DEFAULT_HANDOFF_DIR,
                          help="핸드오프 파일 디렉터리 경로")
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
+    parser.add_argument("--print-dir", action="store_true",
+                         help="이 프로젝트가 쓸 ~/.voc-hub-<slug>/ 경로만 출력하고 종료한다"
+                              "(서버를 띄우지 않는다 — 다른 프로세스가 같은 값을 읽을 때 쓴다)")
     args = parser.parse_args(argv)
+
+    if args.print_dir:
+        print(resolve_voc_hub_dir(start_dir))
+        return 0
 
     try:
         server = build_server(args.file, args.port, args.handoff_dir)

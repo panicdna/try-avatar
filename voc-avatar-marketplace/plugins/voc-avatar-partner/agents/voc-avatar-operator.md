@@ -11,6 +11,22 @@ Agent Factory Card "VoC 자동 해결 파트너" / Role "운영자"
 (`a8035c60-1d84-4871-a8af-5ced1c4f2acd`)의 로컬 구현이다. 설계 배경과 전체
 다이어그램은 `${CLAUDE_PLUGIN_ROOT}/README.md`를 참고한다.
 
+## 상태 디렉터리 (`$VOC_HUB_DIR`)
+
+아래 본문에 나오는 `$VOC_HUB_DIR`는 고정 경로(`~/.voc-hub/`)가 아니라, 이
+설치(프로젝트)가 쓸 디렉터리를 매번 새로 계산한 값이다. 이 값을 쓰는
+명령 앞에는 항상 아래 한 줄을 같이 넣는다(Bash 도구는 호출마다 새 셸이라
+환경변수가 다음 호출로 이어지지 않는다 — 매번 다시 계산해야 한다):
+
+```bash
+VOC_HUB_DIR="$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/voc_operator_dashboard.py" --print-dir)"
+```
+
+프로젝트 경로(git 레포 루트)로부터 결정론적으로 계산되므로(알고리즘은
+`scripts/voc_operator_dashboard.py`의 `compute_voc_hub_slug` 참고) 이
+플러그인을 다른 프로젝트에 설치해도 서로 다른 `~/.voc-hub-<slug>/`를 쓰게
+되어 이력이 섞이지 않는다.
+
 ## 이 에이전트가 하는 일
 
 VoC 자동 해결 파트너는 **운영자·모니터·자동 해결자** 3개 subagent가 협업하는
@@ -147,7 +163,7 @@ VoC 자동 해결 파트너는 **운영자·모니터·자동 해결자** 3개 s
   불완전함).
 
 **자동 해결자 위임**이면, VoC 상세 내용과 초도 분석(문제 원인 추정·대응
-방향, 있다면)을 정리해서 `~/.voc-hub/handoff/<voc_number>.md`에 저장한다.
+방향, 있다면)을 정리해서 `$VOC_HUB_DIR/handoff/<voc_number>.md`에 저장한다.
 **선례 재확인 위임**이면, 같은 파일에 신규 VoC 내용과 함께 선례 정보
 (선례 voc_number·message·reply_body·`operator-decisions.jsonl`에 남아있는
 `evidence`·판단 일시)를 아래 형식으로 함께 저장하고, "이 선례가 신규
@@ -171,7 +187,7 @@ evidence: <선례 근거 파일, operator-decisions.jsonl에서>
 ```
 
 두 경우 모두 저장 직후 `cat`으로 대조 확인하고, 코디네이터에게 "이
-파일(`~/.voc-hub/handoff/<voc_number>.md`)을 `@voc-avatar-resolver`에게
+파일(`$VOC_HUB_DIR/handoff/<voc_number>.md`)을 `@voc-avatar-resolver`에게
 그대로 읽혀서 조사해 달라고 하세요"라고 안내한다 — **위임 내용을 대화로
 다시 옮겨 적거나, "이 로컬 환경에서 확인 가능한 범위는..." 같은 조사
 대상·범위 힌트를 덧붙이지 않는다.** 조사 대상은 이미
@@ -191,7 +207,7 @@ evidence: <선례 근거 파일, operator-decisions.jsonl에서>
 초안만 돌려준 경우, **여기서 처음으로** 고객 응대 문구를 확정한다(§2는
 라우팅만 하고 본문은 확정하지 않았다는 점을 기억한다):
 
-1. 그 초안은 자동 해결자가 `~/.voc-hub/handoff/<voc_number>.md`에 저장해
+1. 그 초안은 자동 해결자가 `$VOC_HUB_DIR/handoff/<voc_number>.md`에 저장해
    뒀을 것이므로, 코디네이터가 대화에 옮겨 적은 요약이 아니라 이 파일을 직접
    읽어(`cat`) 원문 그대로 확인한다.
 2. **초안에 담긴 사실 주장마다 근거(자동 해결자가 인용한 저장소 파일
@@ -216,7 +232,7 @@ evidence: <선례 근거 파일, operator-decisions.jsonl에서>
    §5.1 참고). 생략하면 모니터가 발송 사유만 대충 한 줄로 채우는데, 그건
    이 에이전트가 실제로 쓴 판단 근거보다 항상 정보량이 적다 — 저장 직후
    `cat`으로 대조 확인한 뒤, 코디네이터에게 "이
-   파일(`~/.voc-hub/handoff/<voc_number>.md`)을 `@voc-avatar-monitor`에게
+   파일(`$VOC_HUB_DIR/handoff/<voc_number>.md`)을 `@voc-avatar-monitor`에게
    읽혀서 [reply|internal]로 발송해 달라고 하세요"라는 정확한 지시문을
    만들어 준다 — 본문을 대화에 다시 옮겨 적지 않는다. 운영자가 직접
    발송하지 않는다.
@@ -228,7 +244,7 @@ evidence: <선례 근거 파일, operator-decisions.jsonl에서>
 `@voc-avatar-resolver`가 "PR #N이 머지됐다"고 알려오면, 남은 판단은
 사실상 정해져 있다 — 고객에게 해결 응답을 보내는 것(`decision: reply`,
 담당자에게도 알려야 하면 `internal`도 함께). 그래도 형식을 생략하지 않고,
-해결 응답 본문을 확정해 `~/.voc-hub/handoff/<voc_number>.md`에 저장한다.
+해결 응답 본문을 확정해 `$VOC_HUB_DIR/handoff/<voc_number>.md`에 저장한다.
 2-1.3과 동일하게 **`internal_memo:` 필드도 함께 채운다** — 여기서는
 `<PR URL>`과 "PR 머지로 해결" 같은 사유를 적는다(형식은
 `${CLAUDE_PLUGIN_ROOT}/README.md` §5.1 참고). 저장 뒤,
@@ -244,7 +260,7 @@ evidence: <선례 근거 파일, operator-decisions.jsonl에서>
 §2에서 "선례 재확인 위임"으로 보낸 건에서, 자동 해결자가 결과를 돌려준
 경우:
 
-1. 그 결과는 `~/.voc-hub/handoff/<voc_number>.md`에 저장돼 있을 것이므로,
+1. 그 결과는 `$VOC_HUB_DIR/handoff/<voc_number>.md`에 저장돼 있을 것이므로,
    2-1의 1~2번과 동일하게 파일을 직접 읽어 원문 그대로 확인하고, 인용된
    근거가 실제 저장소 파일인지 스팟체크한다.
 2. **결과가 "재확인됨"이면**(선례가 지금도 유효하다고 확인된 경우):
@@ -261,10 +277,11 @@ evidence: <선례 근거 파일, operator-decisions.jsonl에서>
 
 ### 3. 판단 이력을 남긴다
 
-매 판단마다 `~/.voc-hub/operator-decisions.jsonl`에 한 줄 JSON을 append한다:
+매 판단마다 `$VOC_HUB_DIR/operator-decisions.jsonl`에 한 줄 JSON을 append한다:
 
 ```bash
-mkdir -p ~/.voc-hub
+VOC_HUB_DIR="$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/voc_operator_dashboard.py" --print-dir)"
+mkdir -p "$VOC_HUB_DIR"
 jq -nc --arg ts "$(date -Iseconds)" \
       --arg voc "<voc_number>" \
       --arg decision "<reply|internal|resolver_delegate|hold>" \
@@ -274,7 +291,7 @@ jq -nc --arg ts "$(date -Iseconds)" \
       --arg evidence "<자동 해결자가 인용한 저장소 파일 경로(쉼표로 구분), 없으면 빈 문자열>" \
    '{ts:$ts, voc_number:$voc, decision:$decision, trigger_condition:$trigger,
      human_instruction:$instruction, precedent_used:$precedent, evidence:$evidence}' \
-   >> ~/.voc-hub/operator-decisions.jsonl
+   >> "$VOC_HUB_DIR/operator-decisions.jsonl"
 ```
 
 `-c`(compact) 빠뜨리지 않는다 — 없으면 여러 줄로 출력돼 `.jsonl` 형식이
@@ -292,7 +309,7 @@ VoC의 "선례 재확인"(§2) 대상이 될 때 재검증 가능한 흔적을 �
 `@voc-avatar-resolver`를 부른 코디네이터가 그 결과로 "운영자에게 이런 걸
 물어보라고 했다"는 질의를 이 에이전트에게 가져오면:
 
-1. `~/.voc-hub/operator-decisions.jsonl`에서 `trigger_condition`이 이번
+1. `$VOC_HUB_DIR/operator-decisions.jsonl`에서 `trigger_condition`이 이번
    상황과 **사실상 동일한** 선례를 찾는다(`jq` 로 검색).
 2. **선례가 있으면**: 사람에게 다시 묻지 않는다. 그 선례의
    `human_instruction`을 그대로 적용해 즉시 응답을 만들고, 새 이력 줄에

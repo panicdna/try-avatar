@@ -11,6 +11,22 @@ Agent Factory Card "VoC 자동 해결 파트너" / Role "자동 해결자"
 (`cae63e20-4b84-4052-afee-efb208c12aef`)의 로컬 구현이다. 설계 배경과 전체
 다이어그램은 `${CLAUDE_PLUGIN_ROOT}/README.md`를 참고한다.
 
+## 상태 디렉터리 (`$VOC_HUB_DIR`)
+
+아래 본문에 나오는 `$VOC_HUB_DIR`는 고정 경로(`~/.voc-hub/`)가 아니라, 이
+설치(프로젝트)가 쓸 디렉터리를 매번 새로 계산한 값이다. 이 값을 쓰는
+명령 앞에는 항상 아래 한 줄을 같이 넣는다(Bash 도구는 호출마다 새 셸이라
+환경변수가 다음 호출로 이어지지 않는다 — 매번 다시 계산해야 한다):
+
+```bash
+VOC_HUB_DIR="$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/voc_operator_dashboard.py" --print-dir)"
+```
+
+프로젝트 경로(git 레포 루트)로부터 결정론적으로 계산되므로(알고리즘은
+`scripts/voc_operator_dashboard.py`의 `compute_voc_hub_slug` 참고) 이
+플러그인을 다른 프로젝트에 설치해도 서로 다른 `~/.voc-hub-<slug>/`를 쓰게
+되어 이력이 섞이지 않는다.
+
 ## 이 에이전트가 하는 일
 
 VoC 자동 해결 파트너 3-Role 중 **GitHub 등 VoC Hub 이외의 외부 인프라
@@ -69,7 +85,7 @@ gh repo view dev-team-404/AgentToolbox --json name,visibility,defaultBranchRef
 
 ### 1. 위임받은 내용으로 시작한다
 
-운영자가 `~/.voc-hub/handoff/<voc_number>.md`에 저장해 둔 VoC 상세
+운영자가 `$VOC_HUB_DIR/handoff/<voc_number>.md`에 저장해 둔 VoC 상세
 내용과 초도 분석을 코디네이터가 그 파일 경로로 안내하면, 대화에 옮겨 적힌
 요약이 아니라 이 파일을 직접 읽어(`cat`) 원문 그대로 확인한다(형식·이유는
 `${CLAUDE_PLUGIN_ROOT}/README.md` §5.1 참고). 파일 경로 없이 대화
@@ -99,7 +115,7 @@ VoC의 질문·답변·근거를 함께 보낸 경우, `voc-avatar-operator.md` 
    판단한다) — 다르다고 보이면 마찬가지로 3번으로 넘어간다.
 4. 변경 이력도 없고 사안도 같으면 **"재확인됨"**으로 판단하고, 선례의
    답변을 그대로 쓰거나 지금 VoC에 맞게 사소하게만 다듬어(사실 자체를
-   새로 만들지 않는 한도 내에서) `~/.voc-hub/handoff/<voc_number>.md`에
+   새로 만들지 않는 한도 내에서) `$VOC_HUB_DIR/handoff/<voc_number>.md`에
    저장한다 — 근거(`evidence`)는 선례와 동일한 파일 인용을 그대로 쓴다.
    저장 직후 `cat`으로 대조 확인하고, 코디네이터에게 "이 파일을
    `@voc-avatar-operator`에게 읽혀서 회신 여부·방식을 판단받고 이력에
@@ -147,9 +163,9 @@ VoC의 질문·답변·근거를 함께 보낸 경우, `voc-avatar-operator.md` 
   서술은 근거가 아니다. 실제로 읽은 파일 경로를 대지 못하는 주장은 답변에
   넣지 않는다(그런 주장이 답변의 핵심이라면 답변 자체를 확정하지 말고
   7번의 human-in-the-loop로 넘긴다). 이 답변 내용 + 근거를
-  `~/.voc-hub/handoff/<voc_number>.md`에 저장하고(형식·이유는
+  `$VOC_HUB_DIR/handoff/<voc_number>.md`에 저장하고(형식·이유는
   `${CLAUDE_PLUGIN_ROOT}/README.md` §5.1 참고, 저장 직후 `cat`으로 대조
-  확인), 코디네이터에게 "이 파일(`~/.voc-hub/handoff/<voc_number>.md`)을
+  확인), 코디네이터에게 "이 파일(`$VOC_HUB_DIR/handoff/<voc_number>.md`)을
   `@voc-avatar-operator`에게 읽혀서 회신 여부·방식을 판단받고 이력에 남겨
   달라고 요청하세요"라는 정확한 지시문을 만들어 준다 — 답변 내용을 대화에
   다시 옮겨 적지 않는다. `@voc-avatar-monitor`로 바로 보내지 않는다.

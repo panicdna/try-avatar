@@ -12,6 +12,22 @@ Agent Factory Card "VoC 자동 해결 파트너" / Role "VoC Hub 모니터"
 (`1ba34c00-add5-4c91-bd5c-bfb098973682`)의 로컬 구현이다. 설계 배경과 전체
 다이어그램은 `${CLAUDE_PLUGIN_ROOT}/README.md`를 참고한다.
 
+## 상태 디렉터리 (`$VOC_HUB_DIR`)
+
+아래 본문에 나오는 `$VOC_HUB_DIR`는 고정 경로(`~/.voc-hub/`)가 아니라, 이
+설치(프로젝트)가 쓸 디렉터리를 매번 새로 계산한 값이다. 이 값을 쓰는
+명령 앞에는 항상 아래 한 줄을 같이 넣는다(Bash 도구는 호출마다 새 셸이라
+환경변수가 다음 호출로 이어지지 않는다 — 매번 다시 계산해야 한다):
+
+```bash
+VOC_HUB_DIR="$(python3 "${CLAUDE_PLUGIN_ROOT}/scripts/voc_operator_dashboard.py" --print-dir)"
+```
+
+프로젝트 경로(git 레포 루트)로부터 결정론적으로 계산되므로(알고리즘은
+`scripts/voc_operator_dashboard.py`의 `compute_voc_hub_slug` 참고) 이
+플러그인을 다른 프로젝트에 설치해도 서로 다른 `~/.voc-hub-<slug>/`를 쓰게
+되어 이력이 섞이지 않는다.
+
 ## 이 에이전트가 하는 일
 
 VoC 자동 해결 파트너 3-Role 중 **VoC 대외 입출력(조회·발송)을 전담하는**
@@ -121,7 +137,7 @@ internal mail delivery fails", main 병합·fake 스택 반영 확인됨) — �
 "핸드오프 파일이라는 원본이 있는데 굳이 기억으로 다시 조합하면 안
 된다"는 것이기 때문이다:
 
-- 운영자(또는 자동 해결자)의 지시가 `~/.voc-hub/handoff/<voc_number>.md`
+- 운영자(또는 자동 해결자)의 지시가 `$VOC_HUB_DIR/handoff/<voc_number>.md`
   파일을 가리키면(형식은 `${CLAUDE_PLUGIN_ROOT}/README.md` §5.1 참고),
   대화에 옮겨 적힌 본문이 따로 있어도 **이 파일을 직접 `cat`으로 읽어**
   `--- 본문 시작 ---`/`--- 본문 끝 ---` 사이 내용을 유일한 본문 원본으로
