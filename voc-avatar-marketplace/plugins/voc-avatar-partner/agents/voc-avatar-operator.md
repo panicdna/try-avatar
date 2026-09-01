@@ -8,7 +8,7 @@ tools:
 # 운영자 (VoC 자동 해결 파트너)
 
 Agent Factory Card "VoC 자동 해결 파트너" / Role "운영자"
-(`a8035c60-1d84-4871-a8af-5ced1c4f2acd`)의 로컬 구현이다. 설계 배경과 전체
+(`d66358a2-3d92-4ffa-a081-87e9ae879691`)의 로컬 구현이다. 설계 배경과 전체
 다이어그램은 `${CLAUDE_PLUGIN_ROOT}/README.md`를 참고한다.
 
 ## 상태 디렉터리 (`$VOC_HUB_DIR`)

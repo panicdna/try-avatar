@@ -8,7 +8,7 @@ tools:
 # 자동 해결자 (VoC 자동 해결 파트너)
 
 Agent Factory Card "VoC 자동 해결 파트너" / Role "자동 해결자"
-(`cae63e20-4b84-4052-afee-efb208c12aef`)의 로컬 구현이다. 설계 배경과 전체
+(`b37b4a47-a66a-4234-9fb2-49d88f456806`)의 로컬 구현이다. 설계 배경과 전체
 다이어그램은 `${CLAUDE_PLUGIN_ROOT}/README.md`를 참고한다.
 
 ## 상태 디렉터리 (`$VOC_HUB_DIR`)

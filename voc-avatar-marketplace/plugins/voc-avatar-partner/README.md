@@ -530,6 +530,19 @@ Role의 결과를 읽고, 다음 Role을 호출할 때 그 내용을 옮겨 전�
 > `text`, Role `운영자`/`VoC Hub 모니터`의 `description`만 바뀌었고
 > (Card `responsibility`, 자동 해결자 Role/Task는 이번 변경과 무관해
 > 그대로 둠), ID는 아래와 동일합니다.
+>
+> 2026-09-01(같은 날, 이어서): 상태 디렉터리를 `~/.voc-hub/` 고정 경로
+> 대신 프로젝트 경로로부터 결정론적으로 계산되는 `~/.voc-hub-<slug>/`로
+> 바꾼 변경분(`compute_voc_hub_slug` 도입)을 반영했습니다. ID는 여전히
+> 살아있어 PATCH만 썼습니다 — Task `operator_decision`/`monitor_watch`
+> `text`의 `~/.voc-hub/...` 하드코딩을 `$VOC_HUB_DIR/...`로 교체했고,
+> Role `description`·Card `responsibility`는 이 경로가 언급되지 않아
+> 변경 대상이 아니었습니다. 별개로, 이 세 Role ID가 2026-08-31 갱신
+> 이후 각 subagent 파일(`agents/*.md`) 헤더에는 반영되지 않고 옛
+> ID(`a8035c60...`/`1ba34c00...`/`cae63e20...`)로 남아있던 문서 드리프트를
+> 이번에 발견해 같이 고쳤습니다 — 아래 표가 항상 최신 진실이고,
+> `agents/*.md` 헤더는 참고용 주석이라 실제 API 호출에는 영향이
+> 없었습니다.
 
 | 구분 | 이름 | ID | 로컬 subagent (`@`로 호출) |
 |---|---|---|---|
