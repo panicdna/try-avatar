@@ -256,9 +256,9 @@ DASHBOARD_HTML = """<!doctype html>
   .ts-cell { white-space: nowrap; color: #666; font-size: 0.85em; }
   #source-path, #handoff-dir { color: #666; font-size: 0.85em; margin-bottom: 0.5rem; }
   #source-path code, #handoff-dir code { background: #f5f5f5; padding: 0.1rem 0.3rem; border-radius: 3px; }
-  #source-path-input { font-family: monospace; }
-  #source-path-status.ok { color: #1a7f37; }
-  #source-path-status.error { color: #c0392b; }
+  #source-path-input, #handoff-dir-input { font-family: monospace; }
+  #source-path-status.ok, #handoff-dir-status.ok { color: #1a7f37; }
+  #source-path-status.error, #handoff-dir-status.error { color: #c0392b; }
   h2 { font-size: 1.05rem; margin-top: 2.5rem; }
   #handoff-refresh { margin-bottom: 0.5rem; }
   .handoff-body-cell button { margin-top: 0.3rem; }
@@ -291,7 +291,12 @@ DASHBOARD_HTML = """<!doctype html>
 </datalist>
 
 <h2>핸드오프 파일 현황</h2>
-<div id="handoff-dir">디렉터리: <code>__VOC_HANDOFF_DIR__</code></div>
+<div id="handoff-dir">
+  디렉터리:
+  <input id="handoff-dir-input" type="text" value="__VOC_HANDOFF_DIR__" size="60">
+  <button id="handoff-dir-open">열기</button>
+  <span id="handoff-dir-status"></span>
+</div>
 <button id="handoff-refresh">새로고침</button>
 <table id="handoff-table">
   <thead>
@@ -554,6 +559,42 @@ function renderHandoffRow(item) {
 
 document.getElementById("handoff-refresh").addEventListener("click", () => loadHandoff());
 loadHandoff();
+
+async function openHandoffDir() {
+  const input = document.getElementById("handoff-dir-input");
+  const status = document.getElementById("handoff-dir-status");
+  const path = input.value.trim();
+  if (!path) return;
+  status.className = "";
+  status.textContent = "여는 중...";
+  const res = await fetch("/api/handoff-source", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ path }),
+  });
+  if (!res.ok) {
+    status.className = "error";
+    let message = "열기에 실패했습니다 (HTTP " + res.status + ")";
+    try {
+      const errorBody = await res.json();
+      if (errorBody && errorBody.message) message = errorBody.message;
+    } catch (e) {
+      // 본문이 JSON이 아니면 기본 메시지를 그대로 쓴다
+    }
+    status.textContent = message;
+    return;
+  }
+  const data = await res.json();
+  input.value = data.path;
+  status.className = "ok";
+  status.textContent = "열림 (" + data.exists_note + ")";
+  await loadHandoff();
+}
+
+document.getElementById("handoff-dir-open").addEventListener("click", openHandoffDir);
+document.getElementById("handoff-dir-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") openHandoffDir();
+});
 </script>
 </body>
 </html>
@@ -561,10 +602,10 @@ loadHandoff();
 
 
 def make_handler(jsonl_path: Path, handoff_dir: Path) -> type[BaseHTTPRequestHandler]:
-    # 대시보드 UI의 "열기" 컨트롤이 런타임에 대상 파일을 바꿀 수 있도록, 클로저로
-    # 캡처한 고정값 대신 mutable 컨테이너에 담아 모든 요청 핸들러가 항상 최신 값을
-    # 읽게 한다. handoff_dir은 이 컨트롤의 대상이 아니라 jsonl_path를 따라가지
-    # 않는다 — 필요해지면 별도로 다룬다.
+    # 대시보드 UI의 "열기" 컨트롤(jsonl 파일·핸드오프 디렉터리 둘 다)이 런타임에
+    # 대상을 바꿀 수 있도록, 클로저로 캡처한 고정값 대신 mutable 컨테이너에 담아
+    # 모든 요청 핸들러가 항상 최신 값을 읽게 한다. 두 값은 서로 독립적으로
+    # 바뀐다 — 하나를 바꿔도 다른 하나는 그대로 유지된다.
     state = {"jsonl_path": jsonl_path, "handoff_dir": handoff_dir}
 
     class Handler(BaseHTTPRequestHandler):
@@ -674,32 +715,56 @@ def make_handler(jsonl_path: Path, handoff_dir: Path) -> type[BaseHTTPRequestHan
                 return
             self._send_json(200, {"items": items})
 
-        def do_POST(self) -> None:  # noqa: N802
-            if self.path != "/api/source":
-                self._send_json(404, {"error": "not_found"})
-                return
+        def _read_new_path(self) -> Path | None:
+            """요청 본문의 'path'를 읽어 절대경로로 정규화한다.
+
+            실패하면 적절한 에러 응답을 직접 보내고 None을 반환한다 — 호출부는
+            None이면 바로 return하면 된다.
+            """
             try:
                 body = self._read_json_body()
                 raw_path = body["path"]
             except ValueError:
                 self._bad_request("요청 본문이 올바른 JSON이 아닙니다")
-                return
+                return None
             except (KeyError, TypeError):
                 self._bad_request("'path' 필드가 필요합니다")
-                return
+                return None
             if not isinstance(raw_path, str) or not raw_path.strip():
                 self._bad_request("'path' 필드가 비어 있습니다")
+                return None
+            return Path(raw_path.strip()).expanduser().resolve()
+
+        def do_POST(self) -> None:  # noqa: N802
+            if self.path == "/api/source":
+                new_path = self._read_new_path()
+                if new_path is None:
+                    return
+                if new_path.is_dir():
+                    self._bad_request("디렉터리가 아니라 파일 경로를 입력하세요: " + str(new_path))
+                    return
+                # 파일이 아직 없어도 받아준다 — parse_jsonl은 없는 파일을 에러가 아니라
+                # "아직 이력 없음"(빈 목록)으로 취급한다(README 참고). 새 설치를 미리
+                # 가리켜두는 것도 유효한 사용법이다.
+                state["jsonl_path"] = new_path
+                exists_note = "기존 파일" if new_path.exists() else "새 파일 — 아직 이력 없음"
+                self._send_json(200, {"path": str(new_path), "exists_note": exists_note})
                 return
-            new_path = Path(raw_path.strip()).expanduser().resolve()
-            if new_path.is_dir():
-                self._bad_request("디렉터리가 아니라 파일 경로를 입력하세요: " + str(new_path))
+            if self.path == "/api/handoff-source":
+                new_dir = self._read_new_path()
+                if new_dir is None:
+                    return
+                if new_dir.is_file():
+                    self._bad_request("파일이 아니라 디렉터리 경로를 입력하세요: " + str(new_dir))
+                    return
+                # 디렉터리가 아직 없어도 받아준다 — list_handoff_files는 없는
+                # 디렉터리를 에러가 아니라 빈 목록으로 취급한다(핸드오프가 아직
+                # 한 번도 생긴 적 없는 최초 상태와 동일하게).
+                state["handoff_dir"] = new_dir
+                exists_note = "기존 디렉터리" if new_dir.exists() else "새 디렉터리 — 아직 핸드오프 없음"
+                self._send_json(200, {"path": str(new_dir), "exists_note": exists_note})
                 return
-            # 파일이 아직 없어도 받아준다 — parse_jsonl은 없는 파일을 에러가 아니라
-            # "아직 이력 없음"(빈 목록)으로 취급한다(README 참고). 새 설치를 미리
-            # 가리켜두는 것도 유효한 사용법이다.
-            state["jsonl_path"] = new_path
-            exists_note = "기존 파일" if new_path.exists() else "새 파일 — 아직 이력 없음"
-            self._send_json(200, {"path": str(new_path), "exists_note": exists_note})
+            self._send_json(404, {"error": "not_found"})
 
         def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
             pass  # 터미널 스팸 방지 — 필요하면 나중에 로깅으로 바꾼다
