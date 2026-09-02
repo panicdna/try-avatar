@@ -205,7 +205,7 @@ sequenceDiagram
 
 | 구분 | 이름 | ID | 로컬 subagent (`@`로 호출) |
 |---|---|---|---|
-| Card | VoC 자동 해결 파트너 | `4e1f7d61-9cdc-410c-b827-f0fd623a2c5a` | — |
+| Card | VoC 자동 해결 파트너 | `a09beda5-00ce-4c3b-86b7-340dd69ee6f1` | — |
 | Role | 운영자 | `d66358a2-3d92-4ffa-a081-87e9ae879691` | `@voc-avatar-operator` |
 | Role | VoC Hub 모니터 | `b70dcabf-51a7-488b-a6f4-393c1dfe988d` | `@voc-avatar-monitor` |
 | Role | 자동 해결자 | `b37b4a47-a66a-4234-9fb2-49d88f456806` | `@voc-avatar-resolver` |
