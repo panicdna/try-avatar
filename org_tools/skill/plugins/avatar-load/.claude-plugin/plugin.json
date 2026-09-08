@@ -1,0 +1,7 @@
+{
+  "name": "avatar-load",
+  "description": "Query Agent Factory avatar cards and install as local skills.",
+  "version": "0.3.0",
+  "license": "Apache-2.0",
+  "author": { "name": "Jemings Ko" }
+}

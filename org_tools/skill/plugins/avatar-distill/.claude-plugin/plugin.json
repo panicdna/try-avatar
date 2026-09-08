@@ -1,0 +1,9 @@
+{
+  "name": "avatar-distill",
+  "description": "Distill local Claude Code usage history into Agent Factory Avatar Cards — extracts a redacted work digest, clusters it by work character, and proposes new or augmented Card/Role/Task structure one approval at a time.",
+  "version": "0.2.2",
+  "license": "Apache-2.0",
+  "author": {
+    "name": "Jibin Sung"
+  }
+}

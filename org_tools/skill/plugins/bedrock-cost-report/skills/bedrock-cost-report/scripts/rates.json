@@ -1,0 +1,19 @@
+{
+  "_note": "USD per 1M tokens. 필드: in / cache_read / cache_write / out. key는 모델명(또는 CSV 모델 컬럼 접미사)에 '포함되는' 부분문자열로 매칭되며, 매칭 시 양쪽 모두 영숫자만 남기고 비교하므로 `sonnet_5`(CSV 접미사)와 `claude-sonnet-5`(로컬 로그)가 같은 키에 걸린다.",
+  "_order": "위에서 아래로 첫 일치가 이깁니다. 세대별로 단가가 다르므로 `opus` 같은 뭉뚱그린 키를 쓰지 마세요 -- Opus 4.1은 Bedrock에서 아직 서비스되고 단가가 3배($15)입니다. 미등록 모델은 리포트에 빨간 박스로 노출되고 비용 배분에서 제외됩니다(임의 추정 안 함).",
+  "_source": "https://platform.claude.com/docs/en/about-claude/pricing (2026-08 확인). cache_write는 5분 TTL 요율(base input의 1.25배)이며 1시간 TTL은 2배입니다 -- DS 대시보드가 5분 요율로 비용을 계산하는 것으로 관측되어(scale=1.0000) 이 표도 5분 기준을 씁니다.",
+  "_verify": "python3 driver.py --fetch 실행 후 리포트 하단 '실단가 ~= 정가의 N%'가 100%로 나오면 이 표가 대시보드 산정과 일치합니다. 크게 벗어나면 단가가 바뀐 것이니 위 pricing 페이지로 갱신하세요.",
+
+  "opus_4_1":   {"in": 15, "cache_read": 1.5,  "cache_write": 18.75, "out": 75},
+  "opus_4_5":   {"in": 5,  "cache_read": 0.5,  "cache_write": 6.25,  "out": 25},
+  "opus_4_6":   {"in": 5,  "cache_read": 0.5,  "cache_write": 6.25,  "out": 25},
+  "opus_4_7":   {"in": 5,  "cache_read": 0.5,  "cache_write": 6.25,  "out": 25},
+  "opus_4_8":   {"in": 5,  "cache_read": 0.5,  "cache_write": 6.25,  "out": 25},
+  "opus_5":     {"in": 5,  "cache_read": 0.5,  "cache_write": 6.25,  "out": 25},
+  "fable_5":    {"in": 10, "cache_read": 1.0,  "cache_write": 12.5,  "out": 50},
+  "sonnet_4_5": {"in": 3,  "cache_read": 0.3,  "cache_write": 3.75,  "out": 15},
+  "sonnet_4_6": {"in": 3,  "cache_read": 0.3,  "cache_write": 3.75,  "out": 15},
+  "sonnet_5":   {"in": 2,  "cache_read": 0.2,  "cache_write": 2.5,   "out": 10},
+  "haiku_3_5":  {"in": 0.8, "cache_read": 0.08, "cache_write": 1.0,  "out": 4},
+  "haiku_4_5":  {"in": 1,  "cache_read": 0.1,  "cache_write": 1.25,  "out": 5}
+}
