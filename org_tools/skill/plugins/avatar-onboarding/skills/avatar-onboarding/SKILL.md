@@ -194,13 +194,24 @@ files only), or `both` (default). Pass `--role-slug` once per role so the local 
 each role can be located; server-side roles/tasks are discovered automatically by walking the
 Card's linked Role/Task tree.
 
+`profile.md`/`decisions.md` always come from `--home`. The three platform subagent targets
+(`.claude/agents/agent-factory/`, `.config/opencode/agents/agent-factory/`, `.codex/agents/`) come
+from `--install-home` instead, which defaults to `--home` but can be pointed at a different
+directory -- e.g. a project-scoped Claude Code install
+(`<project>/.claude/agents/agent-factory/<card-slug>-<role-slug>.md`) instead of the global
+`~/.claude/agents/agent-factory/`. Without a matching `--install-home`, those files are silently
+absent from the zip (and from `manifest.json`'s `files` list) -- there's no error, since `_add`
+only checks whether the target path exists under whichever root it was given.
+
 ```bash
 python3 scripts/restore_avatar.py --zip ./backups/<card-slug>.zip --target both --mode auto
 ```
 
 Without `--confirm`, this only previews what would change -- no API call or file write happens.
 Add `--confirm` to actually apply it. `--target` selects `server` (import), `local` (restore), or
-`both` (default, simultaneous). `--mode` controls the server side only:
+`both` (default, simultaneous). Local restore mirrors backup's home split: pass the same
+`--install-home` used for backup so the platform subagent files land back in the project directory
+they came from rather than under `--home`. `--mode` controls the server side only:
 
 - `auto` (default): `GET` each frozen ID first -- if it still exists, `PATCH` it back to the frozen
   values (rollback in place); if not (e.g. the ID was lost to a server reset), `POST` a new

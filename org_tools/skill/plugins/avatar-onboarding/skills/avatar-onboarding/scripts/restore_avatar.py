@@ -55,13 +55,27 @@ def _write_local(path: Path, data: bytes, *, force: bool) -> None:
     path.write_bytes(data)
 
 
-def restore_local(zip_path: Path, *, home: Path, force: bool = False) -> list[Path]:
+_INSTALL_TARGET_PREFIXES = (
+    ".claude/agents/agent-factory/",
+    ".config/opencode/agents/agent-factory/",
+    ".codex/agents/",
+)
+
+
+def restore_local(zip_path: Path, *, home: Path, install_home: Path | None = None, force: bool = False) -> list[Path]:
+    """Write back every local/ entry in the backup. Entries under one of the known install-target
+    paths (.claude/agents/agent-factory/, ...) are rooted at install_home (defaults to home) so a
+    project-scoped install can be restored to the same project directory it came from; everything
+    else (profile.md, decisions.md) is rooted at home, mirroring backup_avatar.py's split."""
+    install_home = install_home or home
     written: list[Path] = []
     with zipfile.ZipFile(zip_path) as zf:
         names = [n for n in zf.namelist() if n.startswith("local/")]
         for name in names:
             data = zf.read(name)
-            target = home / name[len("local/") :]
+            rel = name[len("local/") :]
+            root = install_home if rel.startswith(_INSTALL_TARGET_PREFIXES) else home
+            target = root / rel
             _write_local(target, data, force=force)
             written.append(target)
     return written
@@ -187,6 +201,13 @@ def main() -> None:
     parser.add_argument("--target", choices=["server", "local", "both"], default="both")
     parser.add_argument("--mode", choices=["auto", "create", "update"], default="auto")
     parser.add_argument("--home", type=Path, default=Path.home())
+    parser.add_argument(
+        "--install-home",
+        type=Path,
+        default=None,
+        help="Root to restore installed platform subagent files under, if different from --home "
+        "-- e.g. a project-scoped Claude Code install. Defaults to --home.",
+    )
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--confirm", action="store_true", help="Actually write/upload. Without it, only preview.")
     parser.add_argument(
@@ -214,7 +235,7 @@ def main() -> None:
         )
         print(json.dumps(report, indent=2))
     if args.target in ("local", "both"):
-        written = restore_local(args.zip_path, home=args.home, force=args.force)
+        written = restore_local(args.zip_path, home=args.home, install_home=args.install_home, force=args.force)
         for path in written:
             print(path)
 

@@ -62,30 +62,35 @@ def fetch_server_snapshot(http_get: HttpGet, card_id: str) -> dict[str, bytes]:
     return files
 
 
-_LOCAL_TARGETS = (
-    ("{home}/.claude/agents/agent-factory/{name}.md",),
-    ("{home}/.config/opencode/agents/agent-factory/{name}.md",),
-    ("{home}/.codex/agents/{name}.toml",),
+_INSTALL_TARGET_TEMPLATES = (
+    ".claude/agents/agent-factory/{name}.md",
+    ".config/opencode/agents/agent-factory/{name}.md",
+    ".codex/agents/{name}.toml",
 )
 
 
-def collect_local_files(home: Path, card_slug: str, role_slugs: list[str]) -> dict[str, bytes]:
+def collect_local_files(
+    home: Path, card_slug: str, role_slugs: list[str], install_home: Path | None = None
+) -> dict[str, bytes]:
     """Return {arcname: raw_bytes} for whichever install targets exist, arcname mirroring the
-    home-relative path so restore_avatar.py can write it back unchanged."""
+    path relative to its own root (home for the profile, install_home for install targets) so
+    restore_avatar.py can write it back unchanged. install_home defaults to home -- pass it
+    separately when the platform subagent files were installed into a project directory instead
+    of the profile's home (e.g. a project-scoped Claude Code install)."""
+    install_home = install_home or home
     files: dict[str, bytes] = {}
 
-    def _add(path: Path) -> None:
+    def _add(root: Path, path: Path) -> None:
         if path.exists():
-            arcname = "local/" + path.relative_to(home).as_posix()
+            arcname = "local/" + path.relative_to(root).as_posix()
             files[arcname] = path.read_bytes()
 
-    _add(home / ".agent-factory" / "avatars" / card_slug / "profile.md")
-    _add(home / ".agent-factory" / "avatars" / card_slug / "decisions.md")
+    _add(home, home / ".agent-factory" / "avatars" / card_slug / "profile.md")
+    _add(home, home / ".agent-factory" / "avatars" / card_slug / "decisions.md")
     for role_slug in role_slugs:
         name = f"{card_slug}-{role_slug}"
-        _add(home / ".claude" / "agents" / "agent-factory" / f"{name}.md")
-        _add(home / ".config" / "opencode" / "agents" / "agent-factory" / f"{name}.md")
-        _add(home / ".codex" / "agents" / f"{name}.toml")
+        for template in _INSTALL_TARGET_TEMPLATES:
+            _add(install_home, install_home / template.format(name=name))
     return files
 
 
@@ -96,6 +101,7 @@ def backup(
     http_get: HttpGet | None = None,
     card_id: str | None = None,
     home: Path | None = None,
+    install_home: Path | None = None,
     card_slug: str | None = None,
     role_slugs: list[str] | None = None,
 ) -> Path:
@@ -112,7 +118,7 @@ def backup(
         files.update(fetch_server_snapshot(http_get, card_id))
     if scope in ("local", "both"):
         assert home is not None and card_slug is not None
-        files.update(collect_local_files(home, card_slug, role_slugs or []))
+        files.update(collect_local_files(home, card_slug, role_slugs or [], install_home=install_home))
 
     manifest = {
         "captured_at": datetime.now(timezone.utc).isoformat(),
@@ -138,6 +144,14 @@ def main() -> None:
     parser.add_argument("--role-slug", action="append", dest="role_slugs", default=[])
     parser.add_argument("--home", type=Path, default=Path.home())
     parser.add_argument(
+        "--install-home",
+        type=Path,
+        default=None,
+        help="Root to search for installed platform subagent files (--claude/--config/--codex "
+        "targets), if different from --home -- e.g. a project-scoped Claude Code install. "
+        "Defaults to --home.",
+    )
+    parser.add_argument(
         "--base-url",
         default=os.environ.get("AGENT_FACTORY_BASE_URL", "https://agent.samsungds.net:3355/api/v1/agent"),
     )
@@ -156,6 +170,7 @@ def main() -> None:
         http_get=http_get,
         card_id=args.card_id,
         home=args.home,
+        install_home=args.install_home,
         card_slug=args.card_slug,
         role_slugs=args.role_slugs,
     )

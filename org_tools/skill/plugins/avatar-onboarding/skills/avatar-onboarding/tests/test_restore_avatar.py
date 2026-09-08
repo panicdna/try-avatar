@@ -73,6 +73,42 @@ def test_restore_local_force_overwrites_differing_target(tmp_path: Path) -> None
     assert target.read_bytes() == b"frozen body"
 
 
+def test_restore_local_writes_install_targets_relative_to_install_home(tmp_path: Path) -> None:
+    zip_path = _make_backup_zip(
+        tmp_path / "backup.zip",
+        local_files={
+            "local/.agent-factory/avatars/weekly-report/profile.md": b"profile body",
+            "local/.claude/agents/agent-factory/weekly-report-writer.md": b"agent body",
+        },
+    )
+    home = tmp_path / "home"
+    home.mkdir()
+    install_home = tmp_path / "project"
+    install_home.mkdir()
+
+    written = restore_avatar.restore_local(zip_path, home=home, install_home=install_home)
+
+    profile = home / ".agent-factory" / "avatars" / "weekly-report" / "profile.md"
+    agent = install_home / ".claude" / "agents" / "agent-factory" / "weekly-report-writer.md"
+    assert profile in written and profile.read_bytes() == b"profile body"
+    assert agent in written and agent.read_bytes() == b"agent body"
+    assert not (home / ".claude").exists()
+
+
+def test_restore_local_defaults_install_home_to_home(tmp_path: Path) -> None:
+    zip_path = _make_backup_zip(
+        tmp_path / "backup.zip",
+        local_files={"local/.claude/agents/agent-factory/weekly-report-writer.md": b"agent body"},
+    )
+    home = tmp_path / "home"
+    home.mkdir()
+
+    restore_avatar.restore_local(zip_path, home=home)
+
+    agent = home / ".claude" / "agents" / "agent-factory" / "weekly-report-writer.md"
+    assert agent.read_bytes() == b"agent body"
+
+
 _CARD_JSON = json.dumps({"id": "card-1", "name": "Weekly Report", "responsibility": "Ship it", "roles": [{"avatar_role_id": "role-1", "title": "Writer", "task_count": 1}], "manager_emails": []}).encode()
 _ROLE_JSON = json.dumps({"id": "role-1", "title": "Writer", "description": "Writes drafts", "tasks": [{"avatar_task_id": "task-1", "title": "Draft"}], "manager_emails": []}).encode()
 _TASK_JSON = json.dumps({"id": "task-1", "title": "Draft", "context": None, "text": "Write it", "skills": [], "manager_emails": []}).encode()

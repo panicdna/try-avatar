@@ -61,6 +61,38 @@ def test_collect_local_files_includes_existing_and_skips_missing(tmp_path: Path)
     assert not any("codex" in name for name in files)
 
 
+def test_collect_local_files_uses_install_home_for_install_targets(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    install_home = tmp_path / "project"
+    profile_dir = home / ".agent-factory" / "avatars" / "weekly-report"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "profile.md").write_text("profile body", encoding="utf-8")
+    claude_dir = install_home / ".claude" / "agents" / "agent-factory"
+    claude_dir.mkdir(parents=True)
+    (claude_dir / "weekly-report-writer.md").write_text("agent body", encoding="utf-8")
+
+    files = backup_avatar.collect_local_files(home, "weekly-report", ["writer"], install_home=install_home)
+
+    assert files["local/.agent-factory/avatars/weekly-report/profile.md"] == b"profile body"
+    assert files["local/.claude/agents/agent-factory/weekly-report-writer.md"] == b"agent body"
+
+
+def test_collect_local_files_without_install_home_only_searches_home(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    install_home = tmp_path / "project"
+    profile_dir = home / ".agent-factory" / "avatars" / "weekly-report"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "profile.md").write_text("profile body", encoding="utf-8")
+    claude_dir = install_home / ".claude" / "agents" / "agent-factory"
+    claude_dir.mkdir(parents=True)
+    (claude_dir / "weekly-report-writer.md").write_text("agent body", encoding="utf-8")
+
+    files = backup_avatar.collect_local_files(home, "weekly-report", ["writer"])
+
+    assert "local/.agent-factory/avatars/weekly-report/profile.md" in files
+    assert not any("weekly-report-writer.md" in name for name in files)
+
+
 def test_backup_writes_zip_with_manifest_and_both_scopes(tmp_path: Path) -> None:
     profile_dir = tmp_path / ".agent-factory" / "avatars" / "weekly-report"
     profile_dir.mkdir(parents=True)
@@ -92,6 +124,31 @@ def test_backup_writes_zip_with_manifest_and_both_scopes(tmp_path: Path) -> None
         assert manifest["scope"] == "both"
         assert manifest["card_id"] == "card-1"
         assert manifest["card_slug"] == "weekly-report"
+
+
+def test_backup_forwards_install_home_to_local_collection(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    install_home = tmp_path / "project"
+    profile_dir = home / ".agent-factory" / "avatars" / "weekly-report"
+    profile_dir.mkdir(parents=True)
+    (profile_dir / "profile.md").write_text("profile body", encoding="utf-8")
+    claude_dir = install_home / ".claude" / "agents" / "agent-factory"
+    claude_dir.mkdir(parents=True)
+    (claude_dir / "weekly-report-writer.md").write_text("agent body", encoding="utf-8")
+    output = tmp_path / "out" / "weekly-report.zip"
+
+    backup_avatar.backup(
+        output=output,
+        scope="local",
+        http_get=_fake_http_get({}),
+        home=home,
+        install_home=install_home,
+        card_slug="weekly-report",
+        role_slugs=["writer"],
+    )
+
+    with zipfile.ZipFile(output) as zf:
+        assert zf.read("local/.claude/agents/agent-factory/weekly-report-writer.md") == b"agent body"
 
 
 def test_backup_scope_local_never_calls_http_get(tmp_path: Path) -> None:
