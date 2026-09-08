@@ -1,20 +1,20 @@
 {
-  "id": "99989d8a-4213-47eb-8bd3-8487bd1c1a8f",
+  "id": "c81000f4-52dd-4213-9407-fd140a9a5ee0",
   "name": "VoC 자동 해결 파트너",
-  "responsibility": "3개 Role이 서로 위임/보고를 주고받는다. 역할 분리: 사람과의 대화는 운영자만, VoC 대상 조회·발송은 모니터만, GitHub 등 외부 인프라 연동은 자동 해결자만 수행한다.",
+  "responsibility": "VoC Hub 배정 건을 모니터·운영자·자동 해결자 3개 Role이 서로 위임/보고를 주고받으며 처리한다. 역할 분리: 사람과의 대화는 운영자만, VoC 대상 조회·발송은 모니터만, GitHub 등 외부 인프라 연동은 자동 해결자만 수행한다.",
   "roles": [
     {
-      "avatar_role_id": "d66358a2-3d92-4ffa-a081-87e9ae879691",
+      "avatar_role_id": "1b6aee03-1991-4092-9685-e373a77cd265",
       "title": "운영자",
       "task_count": 1
     },
     {
-      "avatar_role_id": "b37b4a47-a66a-4234-9fb2-49d88f456806",
+      "avatar_role_id": "f1c5ccd2-c9f2-41e3-8de0-076ce21f053d",
       "title": "자동 해결자",
       "task_count": 1
     },
     {
-      "avatar_role_id": "b70dcabf-51a7-488b-a6f4-393c1dfe988d",
+      "avatar_role_id": "6765c756-cf65-48e7-93f6-b2b82ea8c210",
       "title": "VoC Hub 모니터",
       "task_count": 1
     }
