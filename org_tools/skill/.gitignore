@@ -1,0 +1,13 @@
+# Anthropic 공식 문서 전문 덤프 — 스킬 문안의 근거를 확인할 때 외부망에서 받아오는
+# 작업용 입력 파일이다(각각 수십 MB). 사외 문서라 레포에 커밋하지 않는다.
+*llms-full.txt
+*llms.txt
+
+# bedrock-cost-report 가 cwd에 떨어뜨리는 생성물
+*-bedrock-cost-report.html
+
+__pycache__/
+
+# 로컬 경로 마켓플레이스 설치는 워킹트리를 그대로 복사하므로, 테스트 산출물이
+# 남아 있으면 설치본까지 따라간다.
+.pytest_cache/

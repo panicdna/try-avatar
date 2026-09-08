@@ -39,12 +39,18 @@ Agent Factory Avatar Card를 개인용 Claude Code/OpenCode/Codex 서브에이�
    ls ~/.claude/agents/agent-factory/
    ```
    이어서 아래 2절의 호출 형식으로 한 번 불러 자기소개(프로필 경로, 담당 Role)를
-   시키면 설치가 제대로 됐는지 확인된다.
+   시키면 설치가 제대로 됐는지 확인된다. 이 시점에 `scripts`/`skill` 폴더가 비어
+   있는 것은 정상이다 — closure에 있는 각 skill은 실제로 처음 쓰일 때 lazy하게
+   self-install되며, 온보딩 세션이 미리 강제로 호출하지 않는다(강제 호출은 그
+   skill의 전체 절차를 실제 작업 맥락 없이 그 자리에서 실행하는 것과 같아
+   위험하다 — 배경은
+   [`references/mcp-skill-setup.md`](skills/avatar-onboarding/references/mcp-skill-setup.md)
+   case (c) 참고).
 
 ## 2. 설치 후 호출법
 
 - `<card-slug>`/`<role-slug>`는 Card/Role 이름을 소문자 kebab-case로 바꾼 값이다
-  (공백·특수문자를 `-`로 치환) — 설치 시 실제 생성된 값은 4절 "설치 산출물 확인"의
+  (공백·특수문자를 `-`로 치환) — 설치 시 실제 생성된 값은 1절 4번 "설치 산출물 확인"의
   경로에서 그대로 확인할 수 있다.
 - Role은 `@<card-slug>:<role-slug>` 형태로 부른다. 예: Card 슬러그가
   `weekly-report`이고 Role 슬러그가 `writer`면 `@weekly-report:writer`.

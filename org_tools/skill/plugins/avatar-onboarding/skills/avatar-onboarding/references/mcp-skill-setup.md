@@ -53,11 +53,17 @@ linked skill components are by definition already Agent Factory catalog items, t
 **nothing to proactively install** for this case. Verify only:
 
 1. The name matches exactly (case, hyphenation) what the Task/Role prose expects.
-2. It resolves -- note that the assistant will invoke it once with `Skill(skill: <name>)` at
-   first real use rather than during setup, unless the user wants to verify it now.
+2. It resolves -- the assistant invokes it once with `Skill(skill: <name>)` at first real
+   use, not during setup, unless the user wants to verify it now.
 
 Do not run `claude plugin install` or `npx skills add` for this case -- that would be a
-redundant, wrong install path for something the platform already resolves on its own.
+redundant, wrong install path for something the platform already resolves on its own. Do not
+call `Skill(name)` on every closure skill (step 9) from the onboarding session either, to
+force this early: that call runs the skill's whole procedure inline with no real task behind
+it -- the same bulk-auto-install anti-pattern already rejected for this Card (see the parent
+issue), just reintroduced through the `Skill` tool instead of `agent-factory-api`. A closure
+skill's `scripts`/`skill` folder staying empty immediately after install is therefore
+expected, not a bug.
 
 ### (d) Free-text-only Skill mention, not in Agent Factory's registry
 

@@ -9,8 +9,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Literal
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _install_targets import INSTALL_TARGET_TEMPLATES as _PLATFORM_INSTALL_TARGETS  # noqa: E402
 
 Platform = Literal["claude", "opencode", "codex"]
 
@@ -122,17 +127,17 @@ def install(profile_path: Path, *, home: Path, platforms: list[Platform]) -> lis
         if "approval_scope" in raw_role and raw_role["approval_scope"] not in _APPROVAL_CLAUSES:
             raise ValueError("role approval_scope must be one of none, external-write, all when present")
         name = f"{card_slug}-{raw_role['slug']}"
-        if "claude" in platforms:
-            target = home / ".claude" / "agents" / "agent-factory" / f"{name}.md"
-            _write(target, _markdown_agent(name, raw_role, destination, tools_line=_tools_line(raw_role)))
-            written.append(target)
-        if "opencode" in platforms:
-            target = home / ".config" / "opencode" / "agents" / "agent-factory" / f"{name}.md"
-            _write(target, _markdown_agent(name, raw_role, destination))
-            written.append(target)
-        if "codex" in platforms:
-            target = home / ".codex" / "agents" / f"{name}.toml"
-            _write(target, _codex_agent(name, raw_role, destination))
+        for platform, template in _PLATFORM_INSTALL_TARGETS:
+            if platform not in platforms:
+                continue
+            target = home / template.format(name=name)
+            if platform == "claude":
+                content = _markdown_agent(name, raw_role, destination, tools_line=_tools_line(raw_role))
+            elif platform == "opencode":
+                content = _markdown_agent(name, raw_role, destination)
+            else:
+                content = _codex_agent(name, raw_role, destination)
+            _write(target, content)
             written.append(target)
     return written
 

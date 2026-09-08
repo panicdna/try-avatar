@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 import urllib.error
 import urllib.request
 import zipfile
@@ -18,16 +19,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Literal
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from _http import DEFAULT_BASE_URL, ApiError, NetworkError  # noqa: E402
+from _install_targets import INSTALL_TARGET_TEMPLATES as _PLATFORM_INSTALL_TARGETS  # noqa: E402
+
 Scope = Literal["server", "local", "both"]
 HttpGet = Callable[[str], bytes]
-
-
-class HttpError(RuntimeError):
-    def __init__(self, path: str, status: int, body: bytes) -> None:
-        super().__init__(f"GET {path} -> {status}")
-        self.path = path
-        self.status = status
-        self.body = body
 
 
 def default_http_get(base_url: str, api_key: str) -> HttpGet:
@@ -37,7 +34,9 @@ def default_http_get(base_url: str, api_key: str) -> HttpGet:
             with urllib.request.urlopen(req) as resp:
                 return resp.read()
         except urllib.error.HTTPError as exc:
-            raise HttpError(path, exc.code, exc.read()) from exc
+            raise ApiError("GET", path, exc.code, exc.read()) from exc
+        except urllib.error.URLError as exc:
+            raise NetworkError("GET", path, exc) from exc
 
     return get
 
@@ -50,8 +49,11 @@ def fetch_server_snapshot(http_get: HttpGet, card_id: str) -> dict[str, bytes]:
     card = json.loads(card_bytes)
     for role_ref in card.get("roles", []):
         role_id = role_ref["avatar_role_id"]
+        role_arcname = f"server/roles/{role_id}.json"
+        if role_arcname in files:
+            continue
         role_bytes = http_get(f"/avatars/roles/{role_id}")
-        files[f"server/roles/{role_id}.json"] = role_bytes
+        files[role_arcname] = role_bytes
         role = json.loads(role_bytes)
         for task_ref in role.get("tasks", []):
             task_id = task_ref["avatar_task_id"]
@@ -62,11 +64,7 @@ def fetch_server_snapshot(http_get: HttpGet, card_id: str) -> dict[str, bytes]:
     return files
 
 
-_INSTALL_TARGET_TEMPLATES = (
-    ".claude/agents/agent-factory/{name}.md",
-    ".config/opencode/agents/agent-factory/{name}.md",
-    ".codex/agents/{name}.toml",
-)
+_INSTALL_TARGET_TEMPLATES = tuple(template for _, template in _PLATFORM_INSTALL_TARGETS)
 
 
 def collect_local_files(
@@ -105,19 +103,14 @@ def backup(
     card_slug: str | None = None,
     role_slugs: list[str] | None = None,
 ) -> Path:
+    files: dict[str, bytes] = {}
     if scope in ("server", "both"):
         if http_get is None or card_id is None:
             raise ValueError("server scope requires http_get and card_id")
+        files.update(fetch_server_snapshot(http_get, card_id))
     if scope in ("local", "both"):
         if home is None or card_slug is None:
             raise ValueError("local scope requires home and card_slug")
-
-    files: dict[str, bytes] = {}
-    if scope in ("server", "both"):
-        assert http_get is not None and card_id is not None
-        files.update(fetch_server_snapshot(http_get, card_id))
-    if scope in ("local", "both"):
-        assert home is not None and card_slug is not None
         files.update(collect_local_files(home, card_slug, role_slugs or [], install_home=install_home))
 
     manifest = {
@@ -125,6 +118,10 @@ def backup(
         "scope": scope,
         "card_id": card_id,
         "card_slug": card_slug,
+        # Recorded so a later restore can refuse to silently default --install-home to --home
+        # when this backup was captured with a distinct one (see restore_avatar.py). None means
+        # install_home was not explicitly given at backup time -- restore may default freely.
+        "install_home": str(install_home) if install_home is not None else None,
         "files": sorted(files.keys()),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -151,10 +148,7 @@ def main() -> None:
         "targets), if different from --home -- e.g. a project-scoped Claude Code install. "
         "Defaults to --home.",
     )
-    parser.add_argument(
-        "--base-url",
-        default=os.environ.get("AGENT_FACTORY_BASE_URL", "https://agent.samsungds.net:3355/api/v1/agent"),
-    )
+    parser.add_argument("--base-url", default=os.environ.get("AGENT_FACTORY_BASE_URL", DEFAULT_BASE_URL))
     args = parser.parse_args()
 
     http_get = None
@@ -164,16 +158,24 @@ def main() -> None:
             raise SystemExit("AGENT_FACTORY_API_KEY is required for server scope")
         http_get = default_http_get(args.base_url, api_key)
 
-    result = backup(
-        output=args.output,
-        scope=args.scope,
-        http_get=http_get,
-        card_id=args.card_id,
-        home=args.home,
-        install_home=args.install_home,
-        card_slug=args.card_slug,
-        role_slugs=args.role_slugs,
-    )
+    # fetch_server_snapshot deliberately propagates the typed errors (it is also used as a
+    # library function), so rendering them for a human is this entry point's job -- otherwise a
+    # plain 403/timeout reaches the user as a raw traceback.
+    try:
+        result = backup(
+            output=args.output,
+            scope=args.scope,
+            http_get=http_get,
+            card_id=args.card_id,
+            home=args.home,
+            install_home=args.install_home,
+            card_slug=args.card_slug,
+            role_slugs=args.role_slugs,
+        )
+    except ApiError as exc:
+        raise SystemExit(f"backup failed: {exc} {exc.body.decode(errors='replace')[:200]}") from exc
+    except NetworkError as exc:
+        raise SystemExit(f"backup failed: {exc}") from exc
     print(result)
 
 

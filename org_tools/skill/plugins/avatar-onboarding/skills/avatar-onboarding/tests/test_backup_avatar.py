@@ -1,18 +1,14 @@
 from __future__ import annotations
 
-import importlib.util
 import json
 import zipfile
 from pathlib import Path
 
 import pytest
 
+from conftest import load_script
 
-_SCRIPT = Path(__file__).parents[1] / "scripts" / "backup_avatar.py"
-_SPEC = importlib.util.spec_from_file_location("backup_avatar", _SCRIPT)
-assert _SPEC and _SPEC.loader
-backup_avatar = importlib.util.module_from_spec(_SPEC)
-_SPEC.loader.exec_module(backup_avatar)
+backup_avatar = load_script("backup_avatar")
 
 
 _CARD_RAW = b'{"id": "card-1", "name": "Weekly Report",  "roles": [{"avatar_role_id": "role-1", "title": "Writer", "task_count": 1}]}'
@@ -41,6 +37,31 @@ def test_fetch_server_snapshot_walks_card_role_task_closure_and_preserves_raw_by
     assert files["server/card.json"] == _CARD_RAW
     assert files["server/roles/role-1.json"] == _ROLE_RAW
     assert files["server/tasks/task-1.json"] == _TASK_RAW
+
+
+def test_fetch_server_snapshot_dedupes_role_shared_across_the_card(tmp_path: Path) -> None:
+    card_raw = b'{"id": "card-1", "name": "Weekly Report", "roles": [{"avatar_role_id": "role-1", "title": "Writer", "task_count": 1}, {"avatar_role_id": "role-1", "title": "Writer", "task_count": 1}]}'
+    calls: list[str] = []
+
+    def get(path: str) -> bytes:
+        calls.append(path)
+        return {"/avatars/cards/card-1": card_raw, "/avatars/roles/role-1": _ROLE_RAW, "/avatars/tasks/task-1": _TASK_RAW}[path]
+
+    files = backup_avatar.fetch_server_snapshot(get, "card-1")
+
+    assert calls.count("/avatars/roles/role-1") == 1
+    assert files["server/roles/role-1.json"] == _ROLE_RAW
+
+
+def test_default_http_get_wraps_network_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise_url_error(*_args: object, **_kwargs: object) -> None:
+        raise backup_avatar.urllib.error.URLError("connection refused")
+
+    monkeypatch.setattr(backup_avatar.urllib.request, "urlopen", _raise_url_error)
+    get = backup_avatar.default_http_get("https://example.invalid", "key")
+
+    with pytest.raises(backup_avatar.NetworkError):
+        get("/avatars/cards/card-1")
 
 
 def test_collect_local_files_includes_existing_and_skips_missing(tmp_path: Path) -> None:
@@ -126,6 +147,37 @@ def test_backup_writes_zip_with_manifest_and_both_scopes(tmp_path: Path) -> None
         assert manifest["card_slug"] == "weekly-report"
 
 
+def test_backup_records_install_home_in_manifest_when_given(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    install_home = tmp_path / "project"
+    install_home.mkdir()
+    output = tmp_path / "weekly-report.zip"
+
+    backup_avatar.backup(
+        output=output, scope="local", http_get=_fake_http_get({}), home=home, install_home=install_home,
+        card_slug="weekly-report", role_slugs=[],
+    )
+
+    with zipfile.ZipFile(output) as zf:
+        manifest = json.loads(zf.read("manifest.json"))
+    assert manifest["install_home"] == str(install_home)
+
+
+def test_backup_records_no_install_home_when_not_given(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    home.mkdir()
+    output = tmp_path / "weekly-report.zip"
+
+    backup_avatar.backup(
+        output=output, scope="local", http_get=_fake_http_get({}), home=home, card_slug="weekly-report", role_slugs=[],
+    )
+
+    with zipfile.ZipFile(output) as zf:
+        manifest = json.loads(zf.read("manifest.json"))
+    assert manifest["install_home"] is None
+
+
 def test_backup_forwards_install_home_to_local_collection(tmp_path: Path) -> None:
     home = tmp_path / "home"
     install_home = tmp_path / "project"
@@ -189,3 +241,42 @@ def test_backup_scope_server_requires_no_local_files(tmp_path: Path) -> None:
 def test_backup_server_scope_without_card_id_raises() -> None:
     with pytest.raises(ValueError, match="card_id"):
         backup_avatar.backup(output=Path("unused.zip"), scope="server", http_get=_fake_http_get({}))
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        backup_avatar.ApiError("GET", "/avatars/cards/card-1", 403, b"forbidden: bad key"),
+        backup_avatar.NetworkError("GET", "/avatars/cards/card-1", OSError("connection refused")),
+    ],
+    ids=["api-error", "network-error"],
+)
+def test_main_reports_server_failure_as_a_message_not_a_traceback(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: Exception
+) -> None:
+    """A server-side HTTP error or a network failure must reach the user as a one-line message."""
+
+    def _raise(*_args: object, **_kwargs: object) -> bytes:
+        raise error
+
+    monkeypatch.setattr(backup_avatar, "default_http_get", lambda *_a, **_k: _raise)
+    monkeypatch.setenv("AGENT_FACTORY_API_KEY", "key")
+    monkeypatch.setattr(
+        backup_avatar.sys,
+        "argv",
+        [
+            "backup_avatar.py",
+            "--output",
+            str(tmp_path / "out.zip"),
+            "--scope",
+            "server",
+            "--card-id",
+            "card-1",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        backup_avatar.main()
+
+    assert "backup failed:" in str(exc_info.value)
+    assert "/avatars/cards/card-1" in str(exc_info.value)
