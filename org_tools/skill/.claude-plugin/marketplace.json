@@ -1,6 +1,6 @@
 {
   "$schema": "https://www.schemastore.org/claude-code-marketplace.json",
-  "name": "skill",
+  "name": "skill-local",
   "version": "1.0.0",
   "description": "동료들과 공유하는 Claude Code 플러그인 마켓플레이스 — 각 스킬은 자기 레포에서 독립적으로 유지보수된다.",
   "owner": { "name": "aiagent" },
