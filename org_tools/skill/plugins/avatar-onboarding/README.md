@@ -22,7 +22,7 @@ Agent Factory Avatar Card를 개인용 Claude Code/OpenCode/Codex 서브에이�
    `avatar-onboarding`은 Card/Role/Task API 호출을 `agent-factory-api` 스킬에
    위임하므로 두 플러그인을 같이 설치한다.
 3. **`/avatar-onboarding` 실행** — 대화창에서 스킬을 부르면 인터뷰가 시작된다.
-   기존 Card를 고르거나 새 Card를 정의하고, readiness checklist(3절 참고)를
+   기존 Card를 고르거나 새 Card를 정의하고, readiness checklist(4절 참고)를
    답한 뒤 설치를 승인하면 진행된다.
 4. **설치 산출물 확인** — 승인 후 다음 위치에 파일이 생긴다:
 
@@ -58,7 +58,26 @@ Agent Factory Avatar Card를 개인용 Claude Code/OpenCode/Codex 서브에이�
   입력으로 넘긴다. 두 Role이 항상 같은 순서로 이어져야 한다면 그 사실을 checklist
   인터뷰에서 밝혀 `decisions.md`에 기록해 둔다.
 
-## 3. 실제 동작을 위해 추가로 해야 하는 것
+## 3. 백업/복원
+
+서버 Card/Role/Task와 로컬 설치 파일을 통째로 얼려(byte-for-byte, 재직렬화 없이)
+`*.zip`으로 저장하거나, 그 zip을 서버로 되돌리거나(import) 로컬에 되돌릴(restore) 수
+있다. 로컬 fake 서버가 재시작돼 Card/Role ID가 사라졌을 때 재생성하는 용도, 또는
+구조 변경 전 롤백 지점을 남기는 용도로 쓴다. 자세한 옵션은
+[`SKILL.md`의 "Backup and restore"](skills/avatar-onboarding/SKILL.md#backup-and-restore)를
+본다.
+
+```bash
+python3 skills/avatar-onboarding/scripts/backup_avatar.py \
+  --output ./backups/<card-slug>.zip --card-id <CARD_UUID> --card-slug <card-slug> --role-slug <role-slug>
+
+python3 skills/avatar-onboarding/scripts/restore_avatar.py \
+  --zip ./backups/<card-slug>.zip --target both --mode auto   # 미리보기만(기본)
+python3 skills/avatar-onboarding/scripts/restore_avatar.py \
+  --zip ./backups/<card-slug>.zip --target both --mode auto --confirm   # 실제 적용
+```
+
+## 4. 실제 동작을 위해 추가로 해야 하는 것
 
 Card를 설치했다고 바로 실제 업무를 하는 것은 아니다 — 아래를 다 채워야
 "내 몫의 일"을 한다.

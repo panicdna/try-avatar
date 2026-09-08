@@ -171,6 +171,49 @@ Read [`references/platform-adapters.md`](references/platform-adapters.md) before
 
 Alongside `profile.json`, maintain `decisions.md` in the same `~/.agent-factory/avatars/<card-slug>/` directory: a timestamped log of each readiness-checklist item's **resolution and rationale** -- not a raw transcript, just enough for a future session to know what was decided and why without re-deriving or re-asking it. Append an entry as soon as a checklist item is resolved, even mid-interview; don't wait for the final write. `profile.json` stays lean and runtime-facing (what the installed subagent reads); `decisions.md` is provenance only, consulted by *you* during future onboarding/update sessions on this Card, never by the installed subagent itself.
 
+## Backup and restore
+
+`scripts/backup_avatar.py` freezes a server Card/Role/Task and/or its local install files into a
+single `*.zip`, unmodified -- every server response is stored as the raw bytes received (no
+re-serialization) and every local file is copied byte-for-byte, so the frozen content matches the
+source exactly. `scripts/restore_avatar.py` reverses this: it can import the frozen server data
+back into Agent Factory (create-or-update, never rewording any field) and/or restore the frozen
+local files back to disk. Use this before a risky Card restructuring, or to recreate a Card/Role/Task
+after a local fake-server reset that dropped its IDs.
+
+```bash
+python3 scripts/backup_avatar.py \
+  --output ./backups/<card-slug>.zip \
+  --scope both \
+  --card-id <CARD_UUID> --card-slug <card-slug> --role-slug <role-slug> \
+  --home ~ --base-url "$BASE"
+```
+
+`--scope` selects `server` (Card/Role/Task API responses only), `local` (installed profile/agent
+files only), or `both` (default). Pass `--role-slug` once per role so the local install targets for
+each role can be located; server-side roles/tasks are discovered automatically by walking the
+Card's linked Role/Task tree.
+
+```bash
+python3 scripts/restore_avatar.py --zip ./backups/<card-slug>.zip --target both --mode auto
+```
+
+Without `--confirm`, this only previews what would change -- no API call or file write happens.
+Add `--confirm` to actually apply it. `--target` selects `server` (import), `local` (restore), or
+`both` (default, simultaneous). `--mode` controls the server side only:
+
+- `auto` (default): `GET` each frozen ID first -- if it still exists, `PATCH` it back to the frozen
+  values (rollback in place); if not (e.g. the ID was lost to a server reset), `POST` a new
+  Task -> Role -> Card in that dependency order and report the old-ID -> new-ID mapping.
+- `create`: always `POST` new Task/Role/Card, ignoring whether the frozen IDs still exist.
+- `update`: always `PATCH` the frozen IDs; raises if any no longer exists (no silent fallback to create).
+
+Local restore refuses to overwrite a target whose current content differs from the frozen backup
+(same conflict philosophy as `install_avatar.py`'s `_write`) unless `--force` is passed. This is a
+**Card restructuring**-equivalent write when importing to the server -- show the plan (the
+`--confirm`-less preview output) and get explicit approval per the Card-change approval format
+above before adding `--confirm`.
+
 ## Resync consistency check
 
 The server Task/Role/Card, the local profile (`~/.agent-factory/avatars/<card-slug>/profile.md`), and the installed platform subagent file are one record set, not three independent copies -- see `aiagent/AgentToolbox` repo's `docs/avatar-system/decisions/0014-three-source-consistency-for-installed-avatars.md` (ADR 0014) for the failure modes this prevents (a rule added to only one of the three silently disappears on the next resync or gets reverted by a stale server text). Before overwriting an existing profile/target:
