@@ -1,5 +1,6 @@
 {
   "enabledPlugins": {
-    "voc-avatar-partner@voc-avatar-marketplace": true
+    "voc-avatar-partner@voc-avatar-marketplace": true,
+    "voc-operator-dashboard@voc-operator-dashboard": true
   }
 }
