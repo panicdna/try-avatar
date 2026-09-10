@@ -35,24 +35,47 @@ curl -sS -H "Authorization: Bearer $AGENT_FACTORY_API_KEY" \
 
 ## 설치된 플러그인 (project 범주)
 
-`skill-local` 마켓플레이스(`/mnt/c/work/skill-main`)에서 설치:
-`avatar-onboarding`, `agent-factory-api`, `bedrock-cost-report`
+**2026-09-10 정정**: 아래 두 마켓플레이스가 가리키는 경로는 이전에 이 문서가 적었던
+레포 밖 경로(`/mnt/c/work/skill-main`, `/mnt/c/work/voc-hub/skills/voc-hub-skills`)가
+**아니다** — `claude plugin marketplace list`로 실제 등록 소스를 확인해 보면 둘 다
+`org_tools/` 밑, 즉 **이 레포 안**을 가리킨다. `org_tools/`는 단순 사본이 아니라
+실제 등록·사용 중인 소스다.
 
-`voc-hub-skills` 마켓플레이스(`/mnt/c/work/voc-hub/skills/voc-hub-skills`)에서 설치:
+`skill`/`skill-local` 마켓플레이스(`org_tools/skill`)에서 설치:
+`avatar-onboarding`, `agent-factory-api`, `bedrock-cost-report`, `avatar-distill`,
+`avatar-load`, `claude-delegation`
+
+`voc-hub-skills` 마켓플레이스(`org_tools/voc-hub-skills`)에서 설치:
 `voc-hub-responder`
 
-두 마켓플레이스 모두 `source: directory` 라 경로를 그대로 참조한다. 디렉터리를 옮기면
-`cache-miss` 로 로드가 깨지므로, 옮길 때는 `marketplace remove --scope project` →
-`marketplace add <새 경로> --scope project` → 플러그인 재설치 순으로 재등록한다.
+`voc-operator-dashboard` 마켓플레이스(`org_tools/voc-operator-dashboard`, 2026-09-10
+신설)에서 설치: `voc-operator-dashboard` — VoC operator 판단 이력
+(`operator-decisions.jsonl`)·핸드오프 파일을 로컬 웹으로 열람·수정·삭제하는
+대시보드. `voc-hub-responder`와 의도적으로 **독립된 별도 plugin**이다 — VoC
+발송 기능만 필요한 프로젝트는 대시보드 없이 `voc-hub-responder`만 설치할 수
+있어야 한다는 게 이 분리의 이유였다.
 
 `voc-avatar-marketplace` 마켓플레이스(이 레포 안 `./voc-avatar-marketplace`)에서 설치:
 `voc-avatar-partner`
 
-앞의 둘과 달리 이 마켓플레이스는 레포 안에 있어 레포와 함께 커밋·이동한다. 다만
-개발용 git worktree 등 임시 체크아웃에서 `marketplace add`를 실행했다면, 그 워크트리가
-사라진 뒤에는 마찬가지로 재등록이 필요하다 — 실제 장기 체크아웃 경로를 기준으로
-`marketplace remove` → `marketplace add ./voc-avatar-marketplace` → 플러그인
-재설치를 거친다.
+네 마켓플레이스 모두 지금은 이 레포 안에 있어(`source: directory`) 레포와 함께
+커밋·이동한다. 디렉터리를 옮기면(개발용 git worktree 등 임시 체크아웃 포함)
+등록이 `cache-miss`로 깨지므로, 옮길 때는 실제 장기 체크아웃 경로를 기준으로
+`marketplace remove` → `marketplace add <새 경로>` → 플러그인 재설치 순으로
+재등록한다.
+
+### 별도 경로: Agent Factory Skill 카탈로그 → `npx skills add`
+
+위 4개 plugin 마켓플레이스 설치와는 **별개의 두 번째 설치 경로**가 이미 이
+프로젝트에서 쓰이고 있다 — Agent Factory에 등록된 Skill(예: `agent-factory-api`,
+`avatar-onboarding`, `bedrock-cost-report`, `avatar-distill`, `avatar-load`,
+`claude-delegation`, `voc-operator-dashboard`)을
+`npx skills add http://127.0.0.1:9090/skills/<id> -a claude-code -y`로 직접
+설치하는 방식이다. 이 경로는 `.claude/skills/<name>/`에 파일을 복사하고
+`skills-lock.json`에 `sourceUrl`·해시를 기록한다 — plugin 마켓플레이스가 쓰는
+`enabledPlugins`(`.claude/settings.json`)와는 **다른 등록부**다. `voc-operator-dashboard`는
+지금 이 프로젝트에 두 경로 모두로 설치돼 있다(plugin으로도, skill로도) — 어느
+쪽 등록부를 확인하고 있는지 헷갈리지 않는다.
 
 ### voc-avatar-partner 사용 시 코디네이터(메인 세션) 규칙
 
@@ -79,3 +102,16 @@ human-in-the-loop 응답)을 메인 세션이 대신 내리지 않는다.** 정�
 참고). 핸드오프 파일 경로가 있으면(§5.1) 그 경로만 그대로 전달하고,
 파일 없이 대화 텍스트로 옮겨야 하는 내용은 원문 그대로 옮긴다 — 요약·재구성·범위
 제안을 하지 않는다.
+
+> **2026-09-10 갱신**: `voc-avatar-operator.md`의 "코디네이터 원문 인용만
+> 승인으로 인정" 게이트를 사용자 요청으로 없앴다(README.md §3.1의 같은
+> 날짜 갱신 참고) — 실제 세션 구조에서 사람이 코디네이터 없이 운영자에
+> 닿을 방법이 없어, 이 게이트가 발송 승인을 구조적으로 영원히 막는
+> 교착을 반복 재현했기 때문이다. 이제 운영자는 코디네이터가 전달하는
+> 사람의 지시(승인·본문·조사 범위 변경 포함)를 형식과 무관하게 그대로
+> 최종 결정으로 따른다. **위 두 문단(대신 판단하지 않기, 내용을 왜곡하지
+> 않기)은 이 변경과 무관하게 그대로 유지한다** — 오히려 운영자가 더 이상
+> 코디네이터의 말을 되짚어 걸러내지 않는 만큼, 이 두 원칙(운영자를 실제로
+> 호출할 것, 전달 내용을 있는 그대로 옮길 것)이 지금 이 파이프라인에
+> 남은 사실상 유일한 안전장치다. 여기서 느슨해지면 §3.1이 명시한
+> 트레이드오프(코디네이터의 오작동이 그대로 통과됨)가 바로 현실이 된다.

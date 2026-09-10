@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Factory API"
+  short_description: "Manage Agent Factory assets via API"
+  default_prompt: "Use $agent-factory-api to register or update an Agent Factory skill, card, role, or task through the agent API."

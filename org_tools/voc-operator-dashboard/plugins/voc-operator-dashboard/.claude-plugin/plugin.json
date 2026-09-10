@@ -1,0 +1,20 @@
+{
+  "name": "voc-operator-dashboard",
+  "version": "1.0.0",
+  "description": "Local read/edit/delete web dashboard for a VoC operator's decision history (operator-decisions.jsonl) and handoff files. Independent of voc-hub-responder — projects that only need VoC send/receive can install that alone and skip this.",
+  "author": {
+    "name": "panicdna",
+    "url": "https://github.com/panicdna"
+  },
+  "license": "UNLICENSED",
+  "homepage": "https://github.com/dev-team-404/voc-hub",
+  "repository": "https://github.com/dev-team-404/voc-hub.git",
+  "keywords": [
+    "voc",
+    "voc-hub",
+    "operator-decisions",
+    "dashboard",
+    "audit-log",
+    "skill"
+  ]
+}

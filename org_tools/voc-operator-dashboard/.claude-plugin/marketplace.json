@@ -1,0 +1,16 @@
+{
+  "name": "voc-operator-dashboard",
+  "owner": {
+    "name": "panicdna",
+    "url": "https://github.com/panicdna"
+  },
+  "description": "Local read/edit/delete web dashboard for a VoC operator's decision history (operator-decisions.jsonl) and handoff files, maintained by panicdna.",
+  "plugins": [
+    {
+      "name": "voc-operator-dashboard",
+      "source": "./plugins/voc-operator-dashboard",
+      "description": "Local read/edit/delete web dashboard for a VoC operator's decision history (operator-decisions.jsonl) and handoff files. Independent of voc-hub-responder — install this only where the dashboard itself is needed.",
+      "category": "developer-tools"
+    }
+  ]
+}

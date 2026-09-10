@@ -1,12 +1,61 @@
 {
   "version": 1,
   "skills": {
+    "agent-factory-api": {
+      "source": "127.0.0.1",
+      "sourceUrl": "http://127.0.0.1:9090/skills/vqJNi-rOAcJd",
+      "sourceType": "well-known",
+      "computedHash": "baf73c9ebffc9e7441a0bea0ff2318a890a84248acc5a63dc992389c8768baf6",
+      "wellKnownDigest": "sha256:15668db6a5339ed15c920ffa579226cdb5b53a55bc853d94aa298c98990cfd0d"
+    },
+    "avatar-distill": {
+      "source": "127.0.0.1",
+      "sourceUrl": "http://127.0.0.1:9090/skills/vqJNi-rOAcJd",
+      "sourceType": "well-known",
+      "computedHash": "9b776b12a4f8adf2903f7780507c328264defa017d0a1d84606a0f10c6ff3ec8",
+      "wellKnownDigest": "sha256:b3ba64bbdb20f720d59acf45dabf3ab0904802363d9f627d74620300ef760c4b"
+    },
+    "avatar-load": {
+      "source": "127.0.0.1",
+      "sourceUrl": "http://127.0.0.1:9090/skills/vqJNi-rOAcJd",
+      "sourceType": "well-known",
+      "computedHash": "5742290364046fba393dcb6135b9b2c62b7c47d9a86c5a733f7fd3275547db2d",
+      "wellKnownDigest": "sha256:0de9f820c1dd687d4e5a49df24488a4edb94bf8ec7dbb64e452e74aa68ebddb1"
+    },
+    "avatar-onboarding": {
+      "source": "127.0.0.1",
+      "sourceUrl": "http://127.0.0.1:9090/skills/vqJNi-rOAcJd",
+      "sourceType": "well-known",
+      "computedHash": "0a2d4883c98d836e055fbf694150cea8dbc58957f19bfcb29dcd8770551c330b",
+      "wellKnownDigest": "sha256:668862bb76a0d79a52d3b944f3084b705748c578ae541228c2cb69bf9122c6f3"
+    },
+    "bedrock-cost-report": {
+      "source": "127.0.0.1",
+      "sourceUrl": "http://127.0.0.1:9090/skills/vqJNi-rOAcJd",
+      "sourceType": "well-known",
+      "computedHash": "a7b135d9a0ec6dbbfe81faca01bde3b5f4cedfae343f8824469a77621872a2d4",
+      "wellKnownDigest": "sha256:f2b202fcd1727924721a16a7ab62f428e750f11ea42d978c368d3f1e623d1aa3"
+    },
+    "claude-delegation": {
+      "source": "127.0.0.1",
+      "sourceUrl": "http://127.0.0.1:9090/skills/vqJNi-rOAcJd",
+      "sourceType": "well-known",
+      "computedHash": "d8ac822f8b42b6954f1ecb7f8a8dc114a5428a054ffc1086f229e986c31d40d5",
+      "wellKnownDigest": "sha256:2042c1a7a7e406bbb33d43ba64e217880d8d8c4453d17ff20c2ea535133cdde8"
+    },
     "voc-hub-responder": {
       "source": "127.0.0.1",
       "sourceUrl": "http://127.0.0.1:9090/skills/fAfjaqr7nFdX",
       "sourceType": "well-known",
       "computedHash": "6a64880e64e98792c97d4b2a923d8c67be0ebd4cc5fb3a5ad3cced7d6fad5a1c",
       "wellKnownDigest": "sha256:4d20fa8f175c252e99522a8bfd9ae5139950b5340c88e24caacd7e8455830ad0"
+    },
+    "voc-operator-dashboard": {
+      "source": "127.0.0.1",
+      "sourceUrl": "http://127.0.0.1:9090/skills/pl0vcjtQZKCp",
+      "sourceType": "well-known",
+      "computedHash": "f4052b11de5f91140ad40924a52eaf6f17916e6d54cee8cc63764a559356bb0d",
+      "wellKnownDigest": "sha256:e41750585c28dc5374a97f24d3f8583b3b95083c9fb4d9bc6aaf2214ecf22797"
     }
   }
 }
