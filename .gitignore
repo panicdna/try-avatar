@@ -6,3 +6,8 @@ __pycache__/
 .claude/worktrees/
 org_tools/voc-operator-dashboard.zip
 /archive/voc-auto-resolve-partner-inst5_20260910_201103
+
+# avatar-a2a-bridge runtime state -- registry entries + bearer tokens
+# (secrets.token_urlsafe per avatar), never test/runtime data
+.a2a-avatars/
+.a2a-avatars*/

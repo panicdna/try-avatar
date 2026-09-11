@@ -1,0 +1,7 @@
+{
+  "name": "avatar-a2a-bridge",
+  "description": "Expose a local avatar as a remote A2A (Agent2Agent) server, or call one running in another Claude Code session, so two avatars talk directly over HTTP/JSON-RPC instead of through a shared coordinator session. Same-machine, multi-session prototype scope.",
+  "version": "0.2.0",
+  "license": "Apache-2.0",
+  "author": { "name": "panicdna" }
+}
