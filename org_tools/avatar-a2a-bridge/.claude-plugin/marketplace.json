@@ -1,0 +1,13 @@
+{
+  "name": "avatar-a2a-bridge-marketplace",
+  "owner": { "name": "panicdna", "url": "https://github.com/panicdna" },
+  "description": "아바타 간 A2A(Agent2Agent) 원격 통신 플러그인 마켓플레이스.",
+  "plugins": [
+    {
+      "name": "avatar-a2a-bridge",
+      "source": "./plugins/avatar-a2a-bridge",
+      "description": "Expose a local avatar as a remote A2A (Agent2Agent) server, or call one running in another Claude Code session, so two avatars talk directly over HTTP/JSON-RPC instead of through a shared coordinator session. Same-machine, multi-session prototype scope.",
+      "category": "developer-tools"
+    }
+  ]
+}
