@@ -137,10 +137,49 @@ Windows → WSL works (localhost forwarding) and WSL → Windows usually doesn't
 On Windows, `python`/`python3` may
 resolve to the Microsoft Store stub — run the scripts with `py`.
 
+## Cross-machine (two separate PCs, e.g. over the internet)
+
+The shared-file registry only works when both sessions share a filesystem, so
+`--peer` is same-machine only. For a peer on a **different machine** the two
+sides are wired by hand instead:
+
+1. **Server PC** — put a TLS-terminating tunnel or a port-forward in front of
+   the local port so the peer has a URL that reaches it, and advertise that URL
+   (the A2A client POSTs to the interface URL *inside* the Card, not to the base
+   URL it fetched the Card from — so the Card must carry a reachable URL):
+
+   ```bash
+   # e.g. a Cloudflare quick tunnel gives an https URL with no signup:
+   cloudflared tunnel --url http://localhost:8710      # -> https://XXXX.trycloudflare.com
+   python3 .../serve.py --name my-avatar --description "..." \
+     --host 127.0.0.1 --port 8710 \
+     --advertise-url https://XXXX.trycloudflare.com --print-token
+   ```
+
+   `--print-token` writes the bearer token to stderr; hand the public URL + that
+   token to the caller out of band (the caller can't read this machine's token
+   file). `--host 0.0.0.0` (instead of a tunnel) exposes the raw port for a
+   plain LAN/port-forward setup.
+
+2. **Client PC** — skip the registry, pass the URL and token directly:
+
+   ```bash
+   python3 .../call.py --url https://XXXX.trycloudflare.com \
+     --token <token> --message "..."
+   # or --token-file <path> to read the token from a file instead
+   ```
+
+Same auth model as local (Card public, JSON-RPC requires the Bearer token).
+Use a tunnel/reverse-proxy that terminates TLS for anything crossing an
+untrusted network — the bearer token is the only thing protecting the endpoint,
+so it must not travel in clear text.
+
 ## Known limitations (see the design doc for the full list)
 
-- Same machine only (WSL ↔ Windows on one PC included) — no TLS, no real
-  domain, no cross-machine discovery yet.
+- Same-machine `--peer` discovery only (WSL ↔ Windows on one PC included).
+  Cross-machine works but is wired by hand (above): no automatic discovery, and
+  TLS is whatever the tunnel/proxy in front provides — this skill serves plain
+  HTTP on its bound port.
 - No streaming (`message/stream`/SSE) or push notifications — synchronous
   `message/send` + polling `tasks/get` only.
 - `cancel` is not implemented.

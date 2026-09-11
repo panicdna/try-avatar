@@ -6,12 +6,20 @@ Usage:
   call.py --peer voc-avatar-operator --message "..."
   call.py --peer voc-avatar-operator --file handoff.md
   call.py --peer voc-avatar-operator --stdin < handoff.md
+  call.py --url https://peer.example --token <bearer> --message "..."
 
-Looks the peer up in the local discovery registry (registry.py), resolves
-its A2A Agent Card, sends the message over JSON-RPC (`message/send`) using
-the peer's bearer token, then polls `tasks/get` until the task reaches a
-terminal state. The reply artifact text goes to stdout; the exit code is 0
-only on TASK_STATE_COMPLETED.
+--peer looks the peer up in the local shared discovery registry (registry.py):
+that only works when the server runs on this same machine (it reads the port
+and the token file the server wrote). To call a peer on ANOTHER machine, skip
+the registry and give its Agent Card URL and bearer token directly with --url
+and --token (or --token-file) -- the URL must be one the peer advertised via
+`serve.py --advertise-url` (e.g. a tunnel's public https URL), and the token is
+whatever that peer's `serve.py --print-token` emitted.
+
+Either way, resolves the peer's A2A Agent Card, sends the message over JSON-RPC
+(`message/send`) using the bearer token, then polls `tasks/get` until the task
+reaches a terminal state. The reply artifact text goes to stdout; the exit code
+is 0 only on TASK_STATE_COMPLETED.
 
 Passes the message through exactly as given -- this script does not
 summarize, rewrite, or add scope/hints to it (see the coordinator-purity
@@ -51,28 +59,46 @@ def read_message(args: argparse.Namespace) -> str:
     sys.exit("one of --message / --file / --stdin is required (see --list to check what's reachable)")
 
 
-async def call(peer: str, text: str, timeout: float, poll_interval: float) -> int:
-    entry = registry.get(peer)
+def resolve_target(args: argparse.Namespace) -> tuple[str, str, str, str]:
+    """Return (label, url, token, unreachable_hint) from either --url/--token
+    (a peer on another machine, not in this machine's registry) or --peer (the
+    local shared registry)."""
+    if args.url:
+        if args.token_file:
+            token = Path(args.token_file).read_text(encoding="utf-8").strip()
+        elif args.token:
+            token = args.token
+        else:
+            sys.exit("--url requires --token or --token-file (the bearer token the peer's serve.py --print-token emitted)")
+        return args.url, args.url.rstrip("/"), token, ""
+
+    entry = registry.get(args.peer)
     if entry is None:
         sys.exit(
-            f"'{peer}' is not in the local registry ({registry.REGISTRY_FILE}) "
-            f"or its serving process is no longer alive. Is `serve.py --name {peer}` "
-            f"running in that other session? (`call.py --list` shows what's registered now.)"
+            f"'{args.peer}' is not in the local registry ({registry.REGISTRY_FILE}) "
+            f"or its serving process is no longer alive. Is `serve.py --name {args.peer}` "
+            f"running in that other session? (`call.py --list` shows what's registered now.) "
+            f"For a peer on another machine, use --url/--token instead of --peer."
         )
     token = registry.read_token(entry["token_file"])
+    hint = "" if registry.is_local(entry) else (
+        " (registered from another environment: under WSL2's default NAT networking, "
+        "WSL -> Windows localhost usually doesn't work; networkingMode=mirrored with "
+        "hostAddressLoopback=true in .wslconfig makes both directions work)"
+    )
+    return args.peer, entry["url"], token, hint
+
+
+async def call(label: str, url: str, token: str, unreachable_hint: str,
+               text: str, timeout: float, poll_interval: float) -> int:
     httpx_client = httpx.AsyncClient(headers={"Authorization": f"Bearer {token}"}, timeout=timeout)
 
     try:
         client = await create_client(
-            entry["url"], client_config=ClientConfig(streaming=False, polling=True, httpx_client=httpx_client)
+            url, client_config=ClientConfig(streaming=False, polling=True, httpx_client=httpx_client)
         )
     except Exception as exc:  # noqa: BLE001 - report unreachable peer plainly
-        hint = "" if registry.is_local(entry) else (
-            " (registered from another environment: under WSL2's default NAT networking, "
-            "WSL -> Windows localhost usually doesn't work; networkingMode=mirrored with "
-            "hostAddressLoopback=true in .wslconfig makes both directions work)"
-        )
-        sys.exit(f"could not reach '{peer}' at {entry['url']}: {exc}{hint}")
+        sys.exit(f"could not reach '{label}' at {url}: {exc}{unreachable_hint}")
 
     try:
         req = SendMessageRequest(message=new_text_message(text=text, role=Role.ROLE_USER))
@@ -81,7 +107,7 @@ async def call(peer: str, text: str, timeout: float, poll_interval: float) -> in
             if resp.WhichOneof("payload") == "task":
                 task_id = resp.task.id
         if task_id is None:
-            sys.exit(f"'{peer}' accepted the call but returned no task")
+            sys.exit(f"'{label}' accepted the call but returned no task")
 
         elapsed = 0.0
         final_task = None
@@ -93,7 +119,7 @@ async def call(peer: str, text: str, timeout: float, poll_interval: float) -> in
             await asyncio.sleep(poll_interval)
             elapsed += poll_interval
         if final_task is None:
-            sys.exit(f"'{peer}' did not reach a terminal state within {timeout}s (task {task_id})")
+            sys.exit(f"'{label}' did not reach a terminal state within {timeout}s (task {task_id})")
 
         if final_task.status.state != TaskState.TASK_STATE_COMPLETED:
             state_name = TaskState.Name(final_task.status.state)
@@ -105,14 +131,17 @@ async def call(peer: str, text: str, timeout: float, poll_interval: float) -> in
             print(get_artifact_text(art))
         return 0
     except A2AClientError as exc:
-        sys.exit(f"'{peer}' rejected the call: {exc}")
+        sys.exit(f"'{label}' rejected the call: {exc}")
     finally:
         await client.close()
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--peer", help="registered avatar name to call")
+    p.add_argument("--peer", help="registered avatar name to call (local shared registry)")
+    p.add_argument("--url", help="Agent Card URL of a peer on another machine (skips the registry); needs --token/--token-file")
+    p.add_argument("--token", help="bearer token for --url (from the peer's serve.py --print-token)")
+    p.add_argument("--token-file", help="read the bearer token for --url from this file instead of --token")
     p.add_argument("--message", help="message text, sent verbatim")
     p.add_argument("--file", help="read message text from this file, sent verbatim")
     p.add_argument("--stdin", action="store_true", help="read message text from stdin, sent verbatim")
@@ -133,11 +162,12 @@ def main() -> None:
             print(f"{name}\t{e['url']}\tpid={e['pid']}\tstarted={e['started_at']}\t{env}")
         return
 
-    if not args.peer:
-        sys.exit("--peer is required (or use --list)")
+    if not args.peer and not args.url:
+        sys.exit("one of --peer (local registry) or --url (another machine) is required (or use --list)")
 
+    label, url, token, hint = resolve_target(args)
     text = read_message(args)
-    sys.exit(asyncio.run(call(args.peer, text, args.timeout, args.poll_interval)))
+    sys.exit(asyncio.run(call(label, url, token, hint, text, args.timeout, args.poll_interval)))
 
 
 if __name__ == "__main__":

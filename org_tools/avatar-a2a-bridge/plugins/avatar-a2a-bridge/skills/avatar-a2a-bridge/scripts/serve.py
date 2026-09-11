@@ -22,8 +22,15 @@ A2A reply. If the command itself invokes Claude, every message a peer sends
 triggers a real, billed model call -- opt into --exec-command per avatar,
 don't treat it as a safe default.
 
-Binds 127.0.0.1 only (same-machine, multi-Claude-Code-session prototype
-scope; see docs/superpowers/specs/2026-09-12-avatar-a2a-bridge-design.md).
+Binds 127.0.0.1 by default (same-machine, multi-Claude-Code-session prototype
+scope; see docs/superpowers/specs/2026-09-12-avatar-a2a-bridge-design.md). For
+a cross-machine test, put a TLS-terminating tunnel (cloudflared/ngrok) or a
+port-forward in front of this port and pass its public URL as --advertise-url
+so the Agent Card advertises a URL the remote client can actually reach -- the
+A2A client POSTs to the interface URL inside the Card, not to whatever base URL
+it fetched the Card from. --print-token writes the bearer token to stderr so
+you can hand it to that remote caller out of band (it can't read this machine's
+token file). --host 0.0.0.0 binds all interfaces for the raw port-forward case.
 Registers itself in the local discovery registry (registry.py) under --name
 so `call.py --peer <name>` on another session can find it, and deregisters on
 SIGINT/SIGTERM. A SIGKILL leaves a stale registry entry; registry.py prunes
@@ -60,19 +67,34 @@ from starlette.responses import JSONResponse  # noqa: E402
 AGENT_CARD_PATH = "/.well-known/agent-card.json"
 
 
-def bind_socket(port: int | None) -> socket.socket:
-    """Bind (and start listening on) 127.0.0.1:`port`, or an OS-assigned free
-    port if `port` is None. Returns the live socket -- callers must keep it
-    open and hand it to uvicorn.Server.run(sockets=[...]) rather than closing it and
-    passing a bare port number: in this environment, closing and immediately
-    rebinding an ephemeral port loses the race to something else grabbing it
-    (observed failing ~4 times out of 5 in testing) even though the same
-    pattern is the textbook-safe way to do this on plain Linux."""
+def bind_socket(port: int | None, host: str = "127.0.0.1") -> socket.socket:
+    """Bind (and start listening on) `host`:`port`, or an OS-assigned free
+    port if `port` is None (`host` defaults to loopback). Returns the live
+    socket -- callers must keep it open and hand it to
+    uvicorn.Server.run(sockets=[...]) rather than closing it and passing a bare
+    port number: in this environment, closing and immediately rebinding an
+    ephemeral port loses the race to something else grabbing it (observed
+    failing ~4 times out of 5 in testing) even though the same pattern is the
+    textbook-safe way to do this on plain Linux."""
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    sock.bind(("127.0.0.1", port or 0))
+    sock.bind((host, port or 0))
     sock.listen(128)
     return sock
+
+
+def advertised_url(host: str, port: int, advertise_url: str | None = None) -> str:
+    """The URL to publish in the Agent Card interface + registry. The A2A client
+    POSTs to the interface URL declared inside the Card (not to whatever base URL
+    it fetched the Card from), so for a cross-machine caller this must be a URL
+    that reaches this server -- an explicit --advertise-url (a tunnel/port-forward
+    public URL) wins; otherwise a concrete --host is usable as-is; a wildcard or
+    loopback bind falls back to loopback (only same-machine callers can use it)."""
+    if advertise_url:
+        return advertise_url.rstrip("/")
+    if host not in ("127.0.0.1", "localhost", "0.0.0.0", "::", ""):
+        return f"http://{host}:{port}"
+    return f"http://127.0.0.1:{port}"
 
 
 class BearerAuthMiddleware(BaseHTTPMiddleware):
@@ -163,6 +185,15 @@ def main() -> None:
     p.add_argument("--exec-command", help="shell command run per message; stdin=message text, stdout=reply")
     p.add_argument("--timeout", type=float, default=60.0, help="seconds to wait for --exec-command (default 60)")
     p.add_argument("--port", type=int, help="bind this port instead of an OS-assigned free one")
+    p.add_argument("--host", default="127.0.0.1",
+                   help="bind address (default 127.0.0.1; use 0.0.0.0 to accept off-machine connections)")
+    p.add_argument("--advertise-url",
+                   help="URL to publish in the Agent Card interface + registry instead of http://<host>:<port>; "
+                        "set this to a tunnel/port-forward's public URL for a cross-machine caller "
+                        "(the A2A client POSTs to the Card's interface URL, not the URL it fetched the Card from)")
+    p.add_argument("--print-token", action="store_true",
+                   help="print the generated bearer token to stderr so it can be handed to an off-machine caller "
+                        "that cannot read this machine's token file")
     args = p.parse_args()
 
     existing = registry.get(args.name)
@@ -179,11 +210,13 @@ def main() -> None:
             f"or pick a different --name."
         )
 
-    sock = bind_socket(args.port)
+    sock = bind_socket(args.port, args.host)
     port = sock.getsockname()[1]
-    url = f"http://127.0.0.1:{port}"
+    url = advertised_url(args.host, port, args.advertise_url)
     token = registry.new_token(args.name)
     token_file = registry.token_ref(args.name)
+    if args.print_token:
+        print(f"[avatar-a2a-bridge] bearer token for '{args.name}': {token}", file=sys.stderr)
 
     card = AgentCard(
         name=args.name,
@@ -212,7 +245,8 @@ def main() -> None:
     signal.signal(signal.SIGINT, _cleanup)
     signal.signal(signal.SIGTERM, _cleanup)
 
-    print(f"[avatar-a2a-bridge] serving '{args.name}' at {url}{AGENT_CARD_PATH}", file=sys.stderr)
+    print(f"[avatar-a2a-bridge] serving '{args.name}' (bound {args.host}:{port})", file=sys.stderr)
+    print(f"[avatar-a2a-bridge] Agent Card advertised at {url}{AGENT_CARD_PATH}", file=sys.stderr)
     print(f"[avatar-a2a-bridge] registered in {registry.REGISTRY_FILE}", file=sys.stderr)
     try:
         # Hand uvicorn the live socket itself, not fd=sock.fileno(): uvicorn
