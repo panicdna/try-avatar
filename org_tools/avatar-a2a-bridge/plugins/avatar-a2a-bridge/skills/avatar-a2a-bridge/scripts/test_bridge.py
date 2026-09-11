@@ -38,13 +38,15 @@ os.environ["A2A_AVATARS_DIR"] = str(TMP / "registry")  # isolate from ~/.a2a-ava
 
 sys.path.insert(0, str(HERE))
 import registry  # noqa: E402  -- import AFTER setting A2A_AVATARS_DIR, it reads env at import time
+import serve  # noqa: E402  -- for advertised_url() unit coverage
 
 REGISTRY_FILE = TMP / "registry" / "registry.json"
 
 
-def run_call(*args, timeout=15):
+def run_call(*args, timeout=15, env=None):
     return subprocess.run(
-        [PY, str(HERE / "call.py"), *args], capture_output=True, text=True, timeout=timeout
+        [PY, str(HERE / "call.py"), *args], capture_output=True, text=True, timeout=timeout,
+        env={**os.environ, **(env or {})},
     )
 
 
@@ -152,6 +154,32 @@ def main() -> None:
     finally:
         stop_serve(proc, "auth-avatar")
     print("PASS  auth: Agent Card public, JSON-RPC endpoint requires a valid Bearer token")
+
+    # 6a. advertised_url(): the cross-machine URL logic, unit-level (no server) --
+    # --advertise-url (a tunnel/port-forward public URL) wins; a concrete --host is
+    # used as-is; a loopback/wildcard bind falls back to loopback.
+    assert serve.advertised_url("127.0.0.1", 5000) == "http://127.0.0.1:5000"
+    assert serve.advertised_url("0.0.0.0", 5000) == "http://127.0.0.1:5000"
+    assert serve.advertised_url("10.0.0.9", 5000) == "http://10.0.0.9:5000"
+    assert serve.advertised_url("0.0.0.0", 5000, "https://peer.example/") == "https://peer.example"
+    print("PASS  advertised_url: --advertise-url / concrete host / loopback fallback")
+
+    # 6b. cross-machine call path: call.py --url/--token reaches a peer with NO
+    # registry entry (simulates a peer on another machine). The server is local
+    # here, but the caller is pointed at a separate empty A2A_AVATARS_DIR, so a
+    # registry lookup can't be what makes the call succeed.
+    proc, entry = start_serve("xmachine-avatar")
+    try:
+        token = registry.read_token(registry.token_ref("xmachine-avatar"))
+        empty_reg = {"A2A_AVATARS_DIR": str(TMP / "caller-registry")}
+        r = run_call("--url", entry["url"], "--token", token, "--message", "ping", env=empty_reg)
+        assert r.returncode == 0, r.stdout + r.stderr
+        assert r.stdout.strip() == "[echo] ping", r.stdout
+        bad = run_call("--url", entry["url"], "--token", "nope", "--message", "ping", env=empty_reg)
+        assert bad.returncode != 0 and "401" in (bad.stdout + bad.stderr), (bad.stdout, bad.stderr)
+    finally:
+        stop_serve(proc, "xmachine-avatar")
+    print("PASS  cross-machine: call.py --url/--token reaches a peer with no registry entry")
 
     print("\nALL PASS")
 
