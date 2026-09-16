@@ -13,8 +13,12 @@ skills/voc-hub-skills/
         ├── .claude-plugin/
         │   └── plugin.json
         └── skills/
-            └── voc-hub-responder/
-                └── SKILL.md
+            ├── voc-hub-responder/
+            │   └── SKILL.md
+            └── voc-hub-exporter/
+                ├── SKILL.md
+                └── scripts/
+                    └── export_vocs.sh
 ```
 
 ## 플러그인
@@ -22,6 +26,13 @@ skills/voc-hub-skills/
 | 이름 | 설명 |
 |---|---|
 | `voc-hub-responder` | `X-API-Key` 통합 API 로 VoC 를 조회·초안·저장·발송한다. `compose` 가 수신자를 정하므로, 발송은 사람이 **모드·수신·제목**을 보고 승인한 뒤에만 한다. |
+
+`voc-hub-responder` 플러그인에는 스킬이 둘 들어 있다.
+
+| 스킬 | 설명 |
+|---|---|
+| `voc-hub-responder` | 위 트리아지·발송 |
+| `voc-hub-exporter` | 읽기 키가 볼 수 있는 VoC 를 커서 페이지네이션으로 끝까지 받아 JSON 파일 하나로 저장한다. 루프는 `scripts/export_vocs.sh` 가 돌고, 이전 `sync_watermark` 로 증분 export 한다. 결과는 고객 데이터라 저장소 안에는 쓰지 않는다. |
 
 ## 설치
 
@@ -36,7 +47,13 @@ skills/voc-hub-skills/
 mkdir -p .claude/skills/voc-hub-responder
 cp skills/voc-hub-skills/plugins/voc-hub-responder/skills/voc-hub-responder/SKILL.md \
    .claude/skills/voc-hub-responder/SKILL.md
+# exporter 는 scripts/ 까지 디렉터리째 복사한다
+cp -r skills/voc-hub-skills/plugins/voc-hub-responder/skills/voc-hub-exporter .claude/skills/
 ```
+
+플러그인 캐시는 스냅샷 복사본이고 `update` 는 버전 번호만 비교한다. 스킬을 고쳤으면
+`plugin.json` 의 `version` 을 올리거나, uninstall → `~/.claude/plugins/cache/voc-hub-skills`
+삭제 → install 을 거친다.
 
 **B 는 심볼릭 링크가 아니라 복사다.** WSL 에서 저장소가 `/mnt/c`(v9fs) 위에 있으면
 `.claude/skills/` 안의 심볼릭 링크가 조용히 사라진다 — 이 저장소에서 두 번 겪었다.

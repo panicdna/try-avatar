@@ -247,12 +247,17 @@ curl -s "$BASE/V260806" -H "X-API-Key: $KEY" \
 ### 3. 초안을 무발송으로 저장한다
 
 ```bash
+VOC=V260805
+: "${KEY:?}" "${BASE:?}" "${VOC:?}"
+PAYLOAD="$(mktemp "${TMPDIR:-/tmp}/voc-$VOC-patch-XXXXXX.json")"
+trap 'rm -f "$PAYLOAD"' EXIT
+
 jq -n --arg body "답변 초안 본문" --arg memo "내부 메모" \
    '{reply_body:$body, reply_body_type:"text", internal_memo:$memo, status:"reviewing"}' \
-   > /tmp/voc-patch.json
+   > "$PAYLOAD"
 
-curl -s -X PATCH "$BASE/V260805" -H "X-API-Key: $KEY" \
-  -H 'Content-Type: application/json' --data-binary @/tmp/voc-patch.json \
+curl -s -X PATCH "$BASE/$VOC" -H "X-API-Key: $KEY" \
+  -H 'Content-Type: application/json' --data-binary @"$PAYLOAD" \
 | jq 'if .error then {FAIL:.error.code, msg:.error.message}
       else {changed, voc_status_updated, warnings} end'
 ```
@@ -260,6 +265,15 @@ curl -s -X PATCH "$BASE/V260805" -H "X-API-Key: $KEY" \
 보낸 필드만 반영된다. **`reply_body_type` 을 반드시 함께 보낸다** — 생략하면 레코드에
 남아 있던 값이 그대로 유지되어, 기존이 `html` 인 건에 평문을 저장하면 조립 시 줄바꿈이
 사라진다.
+
+**페이로드 파일은 VoC 번호로 갈라 쓰고, 쓰고 나면 지운다.** `/tmp/voc-patch.json` 같은
+고정 이름은 모든 VoC·모든 세션이 같은 슬롯 하나를 덮어쓴다 — 두 건을 나란히 처리하면 한쪽
+본문이 다른 쪽 `curl` 에 실려 **엉뚱한 VoC 에 남의 답변이 저장되고**, 중간에 실패한 run 이
+남긴 파일은 다음 run 이 조용히 집어 간다(파일이 없으면 시끄럽게 실패하지만, 낡은 파일이
+있으면 성공해 버린다). `mktemp` 는 이름을 매번 다르게 만들고 권한도 `0600` 으로 준다 —
+고정 이름은 world-writable 인 `/tmp` 에 `0644` 로 남아 같은 머신의 다른 계정이 고객 본문을
+읽거나, `--data-binary` 가 읽기 직전에 바꿔칠 수 있다. `trap ... EXIT` 로 성공·실패 어느
+쪽이든 반드시 지운다.
 
 **메일은 안 나가지만 외부로는 나간다.** 무언가 실제로 바뀌면 서버가 서비스 연동 3종을
 돌린다 — 서비스에 `status_callback_url` 이 등록돼 있으면 `reply_body` 와
@@ -326,10 +340,12 @@ curl -s -X PATCH "$BASE/V260805" -H "X-API-Key: $KEY" \
 # ① raw — 조립 없음, 고객에게
 VOC=V260805; MODE=raw; IDEM="voc-$VOC-$MODE-$(date +%H%M%S)"
 : "${KEY:?}" "${BASE:?}" "${VOC:?}" "${IDEM:?}"
+PAYLOAD="$(mktemp "${TMPDIR:-/tmp}/voc-$VOC-$MODE-XXXXXX.json")"
+trap 'rm -f "$PAYLOAD"' EXIT
 jq -n --arg body "안내드립니다: 오늘 21시~22시 사이 정기 점검이 예정되어 있습니다." \
-   '{reply_body:$body, compose:"raw", status:"reviewing"}' > /tmp/voc-$MODE.json
+   '{reply_body:$body, compose:"raw", status:"reviewing"}' > "$PAYLOAD"
 curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $IDEM" \
-  -H 'Content-Type: application/json' --data-binary @/tmp/voc-$MODE.json \
+  -H 'Content-Type: application/json' --data-binary @"$PAYLOAD" \
 | jq 'if .error then {FAIL:.error.code, msg:.error.message, retry:.error.retry_action}
       else {ok:.status, log_id, voc_status_updated, warnings} end'
 ```
@@ -338,11 +354,13 @@ curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $ID
 # ② reply — 고객에게, 인용 붙음
 VOC=V260805; MODE=reply; IDEM="voc-$VOC-$MODE-$(date +%H%M%S)"
 : "${KEY:?}" "${BASE:?}" "${VOC:?}" "${IDEM:?}"
+PAYLOAD="$(mktemp "${TMPDIR:-/tmp}/voc-$VOC-$MODE-XXXXXX.json")"
+trap 'rm -f "$PAYLOAD"' EXIT
 jq -n --arg body "문의 주신 증상은 실행 노드 타임아웃으로 확인되었습니다. 다시 실행해 보시고, 재발하면 실행 ID 를 알려주세요." \
       --arg memo "고객 회신 발송" \
-   '{reply_body:$body, internal_memo:$memo, compose:"reply", status:"resolved"}' > /tmp/voc-$MODE.json
+   '{reply_body:$body, internal_memo:$memo, compose:"reply", status:"resolved"}' > "$PAYLOAD"
 curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $IDEM" \
-  -H 'Content-Type: application/json' --data-binary @/tmp/voc-$MODE.json \
+  -H 'Content-Type: application/json' --data-binary @"$PAYLOAD" \
 | jq 'if .error then {FAIL:.error.code, msg:.error.message, retry:.error.retry_action}
       else {ok:.status, log_id, voc_status_updated, warnings} end'
 ```
@@ -351,11 +369,13 @@ curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $ID
 # ③ internal — 담당자에게. 인용 + 제목 접두 + 링크, 고객은 서버가 제거
 VOC=V260807; MODE=internal; IDEM="voc-$VOC-$MODE-$(date +%H%M%S)"
 : "${KEY:?}" "${BASE:?}" "${VOC:?}" "${IDEM:?}"
+PAYLOAD="$(mktemp "${TMPDIR:-/tmp}/voc-$VOC-$MODE-XXXXXX.json")"
+trap 'rm -f "$PAYLOAD"' EXIT
 jq -n --arg body "담당자 확인 부탁드립니다. 재현 절차와 실행 로그를 VoC Hub 에 정리해 두었습니다." \
       --arg memo "내부 기록용 메모" \
-   '{reply_body:$body, internal_memo:$memo, compose:"internal", status:"reviewing"}' > /tmp/voc-$MODE.json
+   '{reply_body:$body, internal_memo:$memo, compose:"internal", status:"reviewing"}' > "$PAYLOAD"
 curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $IDEM" \
-  -H 'Content-Type: application/json' --data-binary @/tmp/voc-$MODE.json \
+  -H 'Content-Type: application/json' --data-binary @"$PAYLOAD" \
 | jq 'if .error then {FAIL:.error.code, msg:.error.message, retry:.error.retry_action}
       else {ok:.status, log_id, voc_status_updated, warnings} end'
 ```

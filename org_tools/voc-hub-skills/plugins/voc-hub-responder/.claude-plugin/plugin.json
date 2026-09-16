@@ -1,7 +1,7 @@
 {
   "name": "voc-hub-responder",
-  "version": "1.0.0",
-  "description": "Triage VoC Hub records from a local stack over the X-API-Key integration API: list open VoCs, save a draft, move a status, and send a customer or internal reply. Gates every send on a human approving the mode, recipient, and subject — because `compose` picks the recipient, approving a customer reply is not approving an internal mail.",
+  "version": "1.1.0",
+  "description": "Triage VoC Hub records from a local stack over the X-API-Key integration API: list open VoCs, save a draft, move a status, and send a customer or internal reply. Gates every send on a human approving the mode, recipient, and subject — because `compose` picks the recipient, approving a customer reply is not approving an internal mail. Also exports every VoC visible to a read key into one JSON file via cursor pagination (voc-hub-exporter skill), with incremental re-export from the previous sync_watermark.",
   "author": {
     "name": "panicdna",
     "url": "https://github.com/panicdna"
@@ -17,6 +17,8 @@
     "compose",
     "idempotency",
     "approval-gate",
+    "export",
+    "backup",
     "skill"
   ]
 }
