@@ -9,7 +9,7 @@
     {
       "name": "voc-hub-responder",
       "source": "./plugins/voc-hub-responder",
-      "description": "Triage VoC Hub records over the X-API-Key integration API — list, draft, save, and send customer or internal replies, with the send gated on an explicit approval of mode, recipient, and subject.",
+      "description": "Triage VoC Hub records over the X-API-Key integration API — list, draft, save, and send customer or internal replies, with the send gated on an explicit approval of mode, recipient, and subject. Also exports all visible VoCs to a JSON file.",
       "category": "developer-tools"
     }
   ]
