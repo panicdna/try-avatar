@@ -285,7 +285,7 @@ curl -s -X PATCH "$BASE/$VOC" -H "X-API-Key: $KEY" \
 ```
 인스턴스: https://ssai.samsungds.net:7942   ← 운영이면 실제 고객에게 나간다
 모드    : internal
-수신    : panicdna@gmail.com          (issue_owner_email 에서 유도)
+수신    : panicdna@gmail.com + VoC Hub 참조 목록   (issue_owner_email + cc 목록에서 유도)
 제목    : (Internal Only) [V260807] VoC reply - SLSI Agent Factory
 ```
 
@@ -294,10 +294,13 @@ curl -s -X PATCH "$BASE/$VOC" -H "X-API-Key: $KEY" \
 - **제목**은 서버가 `[<voc_number>] VoC reply - <service_name>` 로 고정한다. `service_name`
   은 목록/상세 응답에 그대로 있으니 그 값을 쓴다. `internal` 만 `(Internal Only) ` 가 붙는다.
 - **수신**은 모드가 정한다. `raw`·`reply` 는 `customer_email` 그대로다. `internal` 은
-  `issue_owner_email` 에서 ① 고객 주소 제거 ② `@test.com` 등 무시 주소 제거
-  ③ 대소문자 무시 중복 제거(첫 표기 채택) 를 거친 결과다 — 그 컬럼에
-  `"a@x.com,a@x.com,"` 처럼 같은 사람이 여러 번 들어 있는 일이 실제로 있으므로,
-  컬럼 값을 그대로 읽어 주면 안 된다.
+  `issue_owner_email` **과 VoC Hub 에 저장된 그 VoC 의 참조(cc) 목록**을 합쳐 ① 고객 주소
+  제거 ② `@test.com` 등 무시 주소 제거 ③ 대소문자 무시 중복 제거(첫 표기 채택) 를 거친
+  결과다 — 그 컬럼에 `"a@x.com,a@x.com,"` 처럼 같은 사람이 여러 번 들어 있는 일이 실제로
+  있으므로, 컬럼 값을 그대로 읽어 주면 안 된다. 참조 목록은 서비스 참조처(도착 시 seed),
+  웹 화면의 할당, 담당자가 바뀔 때의 이전 담당자로 쌓이며 **통합 API 응답에는 없다.**
+  그래서 승인 요청의 수신 줄에는 `issue_owner_email` 에서 계산한 주소와 함께 "+ VoC Hub
+  참조 목록" 을 반드시 적는다 — 담당자에게만 간다고 말하면 안 된다.
 
 수신·제목을 요청이 못 정한다는 것은 확인해 볼 수 있다. `to` 나 `subject` 를 실어 보내면
 `extra="forbid"` 때문에 **본문 검증 단계에서 422** 로 끊겨 발송이 일어나지 않는다.
@@ -397,7 +400,7 @@ curl -s -X POST "$BASE/$VOC/reply" -H "X-API-Key: $KEY" -H "Idempotency-Key: $ID
 |---|---|
 | `validation_error` (422) | 어느 필드인지 알려주지 않는다. 위 허용 필드 목록과 변수 가드를 대조 |
 | `voc_not_found` (404) | 번호 오타 **또는** 키 스코프 밖 |
-| `no_internal_recipient` (422) | `issue_owner_email` 이 비었거나 고객뿐. 멈추고 보고 |
+| `no_internal_recipient` (422) | `issue_owner_email` 과 참조 목록이 비었거나 고객뿐. 멈추고 보고 |
 | `ignored_recipient` (400) | 수신자가 전부 `@test.com` 등. 멈추고 보고 |
 | `idempotency_conflict` (409) | 새 키로. 같은 키를 다른 요청에 다시 쓰지 않는다 |
 | `operation_in_progress` (409) | **완전히 같은 요청 + 같은 키**로 재조회. 새 시도를 만들지 않는다 |
